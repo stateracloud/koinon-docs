@@ -3,12 +3,17 @@ import { defineConfig, passthroughImageService } from 'astro/config'
 import starlight from '@astrojs/starlight'
 import starlightLinksValidator from 'starlight-links-validator'
 import starlightLlmsTxt from 'starlight-llms-txt'
-import { PRE_RELEASE, SITE } from './site.config.mjs'
+import { PRE_RELEASE, SITE, readKoinonVersion } from './site.config.mjs'
+
+// The release the pages describe, read from koinon.ref next to this file and passed to the pages
+// (Banner, SiteTitle) as import.meta.env.KOINON_VERSION.
+const KOINON_VERSION = readKoinonVersion(new URL('./koinon.ref', import.meta.url))
 
 // No analytics. No external fonts (Geist is self-hosted, see src/styles/koinon.css). No deploy from
 // this repository's CI: Cloudflare builds from GitHub itself.
 export default defineConfig({
   site: SITE,
+  vite: { define: { 'import.meta.env.KOINON_VERSION': JSON.stringify(KOINON_VERSION) } },
   // Only the logo, favicon and mascot SVGs go through the image pipeline; they need no resizing, so
   // skip sharp (a native dependency) and keep the install small.
   image: { service: passthroughImageService() },

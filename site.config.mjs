@@ -3,15 +3,21 @@
 // Site-wide constants. Read by astro.config.mjs, the Banner override and the robots.txt route.
 
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 
 /** The public address of the site. */
 export const SITE = 'https://koinon.stateracloud.com'
 
-/** The Koinon release these pages describe: the one line in the file koinon.ref (the one source of truth; builds run from the repository root). */
-export const KOINON_VERSION = readFileSync(resolve(process.cwd(), 'koinon.ref'), 'utf8').trim()
-if (!KOINON_VERSION) {
-  throw new Error('koinon.ref is empty: it must hold the Koinon release the pages describe, for example v0.1.0')
+/**
+ * The Koinon release these pages describe: the one line in the file koinon.ref (the one source of
+ * truth). astro.config.mjs calls this with the file's URL (Astro loads that config unbundled, so
+ * import.meta.url is right there) and hands the result to the pages as import.meta.env.KOINON_VERSION.
+ */
+export function readKoinonVersion(refUrl) {
+  const version = readFileSync(refUrl, 'utf8').trim()
+  if (!version) {
+    throw new Error('koinon.ref is empty: it must hold the Koinon release the pages describe, for example v0.1.0')
+  }
+  return version
 }
 
 /**

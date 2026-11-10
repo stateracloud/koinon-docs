@@ -4,7 +4,9 @@
 // The pre-release banner (switch: PRE_RELEASE in site.config.mjs), then Starlight's own banner,
 // which a page can still set with the `banner` front matter field.
 import Default from '@astrojs/starlight/components/Banner.astro'
-import { KOINON_VERSION, PRE_RELEASE } from '../../site.config.mjs'
+import { PRE_RELEASE } from '../../site.config.mjs'
+
+const KOINON_VERSION = import.meta.env.KOINON_VERSION
 ---
 
 {

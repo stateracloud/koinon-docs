@@ -4,7 +4,8 @@
 // Starlight's site title (logo and name) plus a quiet version label: the Koinon release the pages
 // describe (koinon.ref). It shows whatever the pre-release switch says.
 import Default from '@astrojs/starlight/components/SiteTitle.astro'
-import { KOINON_VERSION } from '../../site.config.mjs'
+
+const KOINON_VERSION = import.meta.env.KOINON_VERSION
 ---
 
 <Default {...Astro.props}><slot /></Default>
