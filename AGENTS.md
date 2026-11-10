@@ -9,8 +9,9 @@ tracker are in [stateracloud/koinon](https://github.com/stateracloud/koinon).
 - Install: `pnpm install --frozen-lockfile` (pnpm and Node versions: `package.json`, `.node-version`).
 - Dev server: `pnpm dev`. Build: `pnpm build` (the build fails on a broken internal link).
 - Commands check: `hack/commands-check.sh` (bash 5). Offline: `KOINON_SRC=<koinon checkout or export>`.
-- Pages check: `hack/pages-check.sh` (bash 5, helm, Go). Same `KOINON_SRC` override. It runs in the
-  `commands` job. Chart values, manifests, UI labels and versions on a page must match the release.
+- Pages check: `hack/pages-check.sh` (bash 5, helm, Go). Offline: `KOINON_SRC` and
+  `KOINON_MAIN_SRC` (CI never sets `PAGES_CHECK_SKIP_MAIN_LINKS`). It runs in the `commands` job.
+  Chart values, manifests, UI labels, versions and links into the Koinon repository must match the release.
 - Before you push: `gitleaks git --redact --no-banner --log-opts="origin/main..HEAD" .`
 
 ## Rules

@@ -13,6 +13,9 @@
 #      a regexp in the release's Playwright spec, web/e2e-real/*.spec.ts.
 #   4. The versions on the prerequisites page and the gateway page equal the pins of the release
 #      (test/e2e/kind/up.sh, Chart.yaml, internal/preflight, values.yaml, hack/versions.env).
+#   5. Every link to github.com/stateracloud/koinon/(blob|tree)/<rev>/<path> in the pages exists:
+#      <rev> is the tag of koinon.ref (checked in that release) or main (checked in main). Any other
+#      <rev> is a failure. The site build checks internal links only.
 #
 # Ported from hack/docs-check.sh (steps 3, 3b, 4 and 5) of stateracloud/koinon at the release in
 # koinon.ref. The old repository kept the pages in docs/site; they are here now.
@@ -28,6 +31,9 @@
 # Usage:  hack/pages-check.sh
 # Env:    KOINON_SRC   a local Koinon checkout or export at the pinned release, for offline runs.
 #                      Without it the script fetches the tag of koinon.ref from github.com.
+#         KOINON_MAIN_SRC  with KOINON_SRC: a checkout or export of main, for check 5. Without it, an
+#                      offline run fails check 5, unless PAGES_CHECK_SKIP_MAIN_LINKS=1 (a visible
+#                      `skip:` line). CI never sets that variable.
 #         KOINON_REPO  the repository to fetch (default https://github.com/stateracloud/koinon.git)
 #         PAGES_DIR    the pages (default src/content/docs/docs), to check a changed copy
 #         HELM         the helm binary (default helm)
@@ -101,23 +107,36 @@ done <"$tmp/blocks.list"
 # 2. Declarative Secrets shown in the pages. The tests read fixed paths, so run them in a copy.
 work=$tmp/work
 mkdir -p "$work"
-(cd "$src" && tar --exclude=.git -cf - .) | tar -xf - -C "$work"
+# Copy only what the Go test needs: no .git, node_modules, build output or web/ and docs/ trees.
+(cd "$src" && tar --exclude=.git --exclude=node_modules --exclude=dist --exclude=./web --exclude=./docs \
+  --exclude=./.claude --exclude=./.codegraph -cf - .) | tar -xf - -C "$work"
 site=$work/docs/site/src/content/docs
 mkdir -p "$site/guides"
 cp "$quickstart" "$site/quickstart.md"
 cp "$models" "$site/guides/models.md"
 cp "$mcp" "$site/guides/mcp-servers.md"
-if (cd "$work" && go test -count=1 -run 'TestDocumentedSecretsParse|TestDocumentedMCPServerSecretsParse' ./internal/declarative) >"$tmp/secrets.out" 2>&1; then
-  ok "the model-provider and mcp-server manifests in the pages parse with the code at $ref"
+tests="TestDocumentedSecretsParse TestDocumentedMCPServerSecretsParse"
+if [[ ! -f $src/internal/declarative/docs_test.go ]]; then
+  fail "internal/declarative/docs_test.go does not exist at $ref: the main repository no longer has the test, so check 2 needs a new source"
 else
-  cat "$tmp/secrets.out" >&2
-  fail "a model-provider or mcp-server manifest does not parse with the code at $ref (internal/declarative/docs_test.go)"
+  (cd "$work" && go test -count=1 -v -run '^(TestDocumentedSecretsParse|TestDocumentedMCPServerSecretsParse)$' ./internal/declarative) >"$tmp/secrets.out" 2>&1 || {
+    cat "$tmp/secrets.out" >&2
+    fail "a model-provider or mcp-server manifest does not parse with the code at $ref (internal/declarative/docs_test.go)"
+  }
+  missing=0
+  for t in $tests; do
+    if ! grep -qE "^--- PASS: $t( |$)" "$tmp/secrets.out"; then
+      missing=1
+      grep -qE "^--- (FAIL|SKIP): $t( |$)" "$tmp/secrets.out" || fail "the test $t did not run: the main repository no longer has the test at $ref, so check 2 needs a new source"
+    fi
+  done
+  [[ $missing -eq 0 ]] && ok "the model-provider and mcp-server manifests in the pages parse with the code at $ref ($tests passed)"
 fi
 
 # 3. UI labels.
 before=$failures
 spec=$(cat "$src"/web/e2e-real/*.spec.ts)
-awk '/^## 3\./ {on=1} /^## Changing in v0.1/ {on=0} on' "$quickstart" | grep -oE '\*\*[^*]+\*\*' | sort -u | sed -e 's/^\*\*//' -e 's/\*\*$//' >"$tmp/labels"
+awk '/^## 3\./ {on=1} /^## Changing in v0.1/ {on=0} on' "$quickstart" | { grep -oE '\*\*[^*]+\*\*' || true; } | sort -u | sed -e 's/^\*\*//' -e 's/\*\*$//' >"$tmp/labels"
 [[ -s $tmp/labels ]] || fail "no bold UI labels found in the quickstart's browser steps"
 while IFS= read -r label; do
   # The label must be a whole quoted string ('Label') or a regexp ( /Label/ ) in the spec.
@@ -149,6 +168,54 @@ need "$prereq" "kind version in hack/versions.env" "$(pin "$src/hack/versions.en
 need "$prereq" "Helm version in hack/versions.env" "$(pin "$src/hack/versions.env" HELM_VERSION | sed 's/^v//')"
 need "$gateway" "agentgateway tag in values.yaml" "$(sed -n 's/^ *tag: \(v1\.[0-9.]*\)$/\1/p' "$src/charts/koinon/values.yaml" | head -1)"
 [[ $failures -eq $before ]] && ok "prerequisite versions match the release at $ref"
+
+# 5. Links into the Koinon repository.
+before=$failures
+links=$tmp/links.list
+{
+  find "$pages" -type f \( -name '*.md' -o -name '*.mdx' \)
+  find "$root/src/content/docs" -maxdepth 1 -type f \( -name '*.md' -o -name '*.mdx' \)
+  [[ -f $root/astro.config.mjs ]] && echo "$root/astro.config.mjs"
+  [[ -d $root/src/components ]] && find "$root/src/components" -type f
+} | sort -u | while IFS= read -r f; do
+  grep -hoE 'https://github\.com/stateracloud/koinon/(blob|tree)/[A-Za-z0-9_.-]+/[A-Za-z0-9_./#?=&%-]*' "$f" || true
+done | sort -u >"$links"
+koinon_list_dir "$src" >"$tmp/tag.paths"
+main_ready=1
+if [[ -n ${KOINON_SRC:-} && -z ${KOINON_MAIN_SRC:-} ]]; then
+  if [[ ${PAGES_CHECK_SKIP_MAIN_LINKS:-} == 1 ]]; then
+    echo "skip: links to main are not checked (PAGES_CHECK_SKIP_MAIN_LINKS=1 and no KOINON_MAIN_SRC)"
+    main_ready=0
+  else
+    fail "an offline run needs KOINON_MAIN_SRC (a checkout of main) for the links to main; or set PAGES_CHECK_SKIP_MAIN_LINKS=1 to skip them"
+    main_ready=0
+  fi
+else
+  koinon_main_paths "$tmp" "$tmp/main.paths"
+fi
+ntag=0
+nmain=0
+nskip=0
+while IFS= read -r url; do
+  rest=${url#https://github.com/stateracloud/koinon/}
+  rest=${rest#*/}              # drop blob/ or tree/
+  rev=${rest%%/*}
+  path=${rest#*/}
+  path=${path%%[#?]*}
+  path=${path%/}
+  if [[ $rev == "$ref" ]]; then
+    ntag=$((ntag + 1))
+    grep -qFx -- "$path" "$tmp/tag.paths" || fail "the pages link to $path at $ref, which does not exist: $url"
+  elif [[ $rev == main ]]; then
+    if [[ $main_ready -eq 0 ]]; then nskip=$((nskip + 1)); continue; fi
+    nmain=$((nmain + 1))
+    grep -qFx -- "$path" "$tmp/main.paths" || fail "the pages link to $path on main, which does not exist: $url"
+  else
+    fail "the pages link to revision '$rev', but a link must use main or $ref: $url"
+  fi
+done <"$links"
+[[ -s $links ]] || fail "no links into the Koinon repository found in the pages"
+[[ $failures -eq $before ]] && ok "repository links resolve ($ntag at $ref, $nmain on main, $nskip skipped)"
 
 if [[ $failures -ne 0 ]]; then
   echo "pages-check: $failures problem(s)" >&2

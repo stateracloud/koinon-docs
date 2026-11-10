@@ -44,3 +44,25 @@ koinon_src() {
   fi
   echo "fetched the Koinon sources at $ref"
 }
+
+# koinon_main_paths <tmp> <outfile>: writes every file and directory path (relative, one per line) of
+# the main branch of the Koinon repository to <outfile>. With KOINON_MAIN_SRC set (an offline run),
+# the paths come from that checkout or export. Otherwise main is fetched shallow, without file
+# contents (a partial clone), and listed with git ls-tree.
+koinon_main_paths() {
+  local tmp=$1 out=$2 repo
+  if [[ -n ${KOINON_MAIN_SRC:-} ]]; then
+    koinon_list_dir "$KOINON_MAIN_SRC" >"$out"
+    return 0
+  fi
+  repo=${KOINON_REPO:-https://github.com/stateracloud/koinon.git}
+  git init -q "$tmp/koinon-main"
+  git -C "$tmp/koinon-main" fetch -q --depth 1 --filter=blob:none "$repo" refs/heads/main || { echo "cannot fetch main from $repo" >&2; exit 2; }
+  git -C "$tmp/koinon-main" ls-tree -r -t --name-only FETCH_HEAD >"$out" || { echo "cannot list main" >&2; exit 2; }
+}
+
+# koinon_list_dir <dir>: every file and directory path under <dir>, relative, without .git and
+# node_modules.
+koinon_list_dir() {
+  (cd "$1" && find . \( -name .git -o -name node_modules \) -prune -o -print | sed -e 's|^\./||' -e '/^\.$/d')
+}
