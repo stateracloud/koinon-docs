@@ -27,6 +27,7 @@ export default defineConfig({
       customCss: ['./src/styles/koinon.css'],
       components: {
         Banner: './src/components/Banner.astro',
+        SiteTitle: './src/components/SiteTitle.astro',
         SocialIcons: './src/components/SocialIcons.astro',
       },
       // The pre-release switch (site.config.mjs): tell search engines not to list any page.

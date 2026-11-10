@@ -1,0 +1,25 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+//
+// Starlight's site title (logo and name) plus a quiet version label: the Koinon release the pages
+// describe (koinon.ref). It shows whatever the pre-release switch says.
+import Default from '@astrojs/starlight/components/SiteTitle.astro'
+import { KOINON_VERSION } from '../../site.config.mjs'
+---
+
+<Default {...Astro.props}><slot /></Default>
+<span class="kn-version" title="The Koinon release these pages describe" data-pagefind-ignore>{KOINON_VERSION}</span>
+
+<style>
+  .kn-version {
+    flex-shrink: 0;
+    margin-inline-start: 0.5rem;
+    padding: 0.05rem 0.5rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 999px;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-xs);
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+</style>
