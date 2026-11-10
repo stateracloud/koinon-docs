@@ -3,7 +3,8 @@
 # Four checks. There is no deploy job: Cloudflare builds this repository from GitHub itself
 # (Workers Builds). Actions are pinned by commit SHA, the same ones the Koinon repository uses.
 #   build     the site builds, and the build fails on a broken internal link (starlight-links-validator)
-#   commands  the `sh e1=<name>` blocks equal the Koinon repository's command files at koinon.ref
+#   commands  the `sh e1=<name>` blocks equal the Koinon repository's command files at koinon.ref, and
+#             the chart values, manifests, UI labels and versions on the pages match that release
 #   gitleaks  no secret in any commit of the range
 #   dco       every commit of a pull request has a Signed-off-by line that matches its author
 name: ci
@@ -36,6 +37,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: hack/commands-check.sh
+      # The pages check runs the Koinon repository's Go test and its chart, so it needs the Go and
+      # Helm versions that release pins. Same action pins as the Koinon repository (v0.1.0-rc.11).
+      - id: pins
+        run: hack/koinon-pins.sh >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ steps.pins.outputs.go }}
+          cache: false
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ steps.pins.outputs.helm }}
+      - run: hack/pages-check.sh
 
   gitleaks:
     runs-on: ubuntu-latest
