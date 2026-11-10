@@ -31,8 +31,8 @@ Only when both are true:
    which the policy does not touch.
 3. The agent run's events and the audit trail in Koinon (the run page, or the OCSF log the
    supervisor emits).
-4. Recreate the sandbox. Koinon does this automatically when a sandbox is lost (since
-   old issue 102); the home volume persists.
+4. Recreate the sandbox. Koinon does this automatically when a sandbox is lost;
+   the home volume persists.
 5. Saved work. A stuck sandbox's uncommitted work is saved by `koinon-agentd` before it is
    recreated ([ADR 0054](https://github.com/stateracloud/koinon/blob/main/docs/adr/0054-unkillable-sandbox-process.md)).
 
@@ -93,7 +93,7 @@ stay on.
    ```
 
    If you deleted it, `helm upgrade` (or a GitOps sync) recreates it; by hand, render it with
-   `helm template <release> charts/koinon -n <namespace> -f <your values> --show-only templates/sandbox-policy.yaml`
+   `helm template <release> oci://ghcr.io/stateracloud/koinon/charts/koinon --version <version> -n <namespace> -f <your values> --show-only templates/sandbox-policy.yaml`
    and apply the `...-sandbox-connect` binding. Use the same value as `sandboxPolicy.validationActions`
    (default `[Deny]`). Without `-f <your values>` a non-default `validationActions` or
    `namespaceSelector` is lost.

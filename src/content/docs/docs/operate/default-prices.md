@@ -3,37 +3,19 @@ title: "Default prices: sources, updates and overrides"
 ---
 
 Koinon prices every model request itself, from the raw usage and a dated price. This runbook says
-where the default prices come from, how to change them and how admins override them. The design is
+where the default prices come from, how they update and how admins override them. The design is
 in [ADR 0056](https://github.com/stateracloud/koinon/blob/main/docs/adr/0056-model-providers-pricing-and-budgets-per-org.md).
 
 ## The default list
 
-`pricing/default.yaml` is embedded in the `koinon-api` binary. Each entry has a match pattern, prices
-(USD per million tokens, at most six fraction digits), optional context tiers, an effective date
-(`valid_from`), a tokenizer and bytes-per-token ratio for estimates, a source URL and the date the
-page was read. The test `go test ./pricing` (run by CI) checks the schema and that every entry has a
-source.
+The built-in price list ships inside the release, in the `koinon-api` binary. An operator cannot edit it.
+The steps that change it are in the Koinon repository
+([prices guide](https://github.com/stateracloud/koinon/blob/v0.1.0-rc.11/docs/ops/prices.md)).
+Each ledger entry cites the price version it used (`default@<version>#<id>`).
 
-**Sources.** Take prices only from the provider's own pricing page (Anthropic, OpenAI, DeepSeek) or,
-for a route through OpenRouter, from OpenRouter's models API (its own price list). Do not copy prices
-from aggregators, blog posts or other gateways' catalogs. If a number cannot be verified on a primary
-page, leave the model out and say so in the pull request.
-
-**Changing a price.** Add an entry with the same `id`, the new prices and a later `valid_from`, keep
-the old one, update `source.accessed` and the note, and bump `version` (`YYYY-MM-DD.N`). Ledger
-entries keep citing the price version they used (`default@<version>#<id>`). Add new models the same
-way. Review the list against the pages at least once a month; the date in each entry's `source` says
-how old it is.
-
-`not_hosts` (optional) lists hosts an entry does not apply to: a provider whose URL host is one of them, or a
-subdomain, is not priced by the entry. `ollama-local` uses it for `ollama.com`, where Ollama cloud bills per
-token, so a model on a cloud-pointed `ollama` provider is unpriced (refused) until an admin sets an org price.
-
-`max_output` is required for every entry with a non-zero price (the price-list test and the org price API enforce it). It is the model's largest output in tokens (an aborted response without usage settles at the
-request's `max_tokens`, or at this when the request's limit was not logged); `hidden_thinking` marks
-models that bill reasoning the response may not show. A monthly workflow (`review-prices`) opens a
-"Review default prices" issue listing every entry with its source and last-checked date, unless one is
-already open.
+Some entries list hosts they do not apply to. The built-in `ollama-local` entry does not apply to `ollama.com`,
+where Ollama cloud bills per token. A model on an `ollama` provider that points to the cloud is unpriced
+(refused) until an admin sets an org price.
 
 **After an upgrade.** `koinon-api` records each list version it runs. Ask what changed with
 `GET /admin/v1/prices/defaults/changes` (without parameters: the current version against the one
@@ -46,7 +28,7 @@ They win over the default list. A price has a name; setting the same name again 
 applies from its `validFrom` (default now), and earlier versions never change, so past requests keep
 the price they were charged at. `DELETE /admin/v1/prices/{name}` ends the price. Every change is audited. The UI is the *Prices*
 page (Settings, owners and admins); the per-model `rates` of the first release were folded into org prices
-by migration 00014 and are refused now.
+when you upgraded, and are refused now.
 
 ## The platform price list (updates between releases)
 
@@ -54,8 +36,8 @@ Between an org's own prices and the default list sits the **platform list**: an 
 list in Postgres, versioned and append-only. A request is priced by the first of three layers that
 names its model: the org price, then the platform list, then the default list. Ledger rows cite a
 platform price as `platform@<version>#<entry id>`. The design is
-[ADR 0098](https://github.com/stateracloud/koinon/blob/main/docs/adr/0098-price-catalogue-updates-from-public-sources.md); this is slice 1 (OpenRouter
-only, command line only).
+[ADR 0098](https://github.com/stateracloud/koinon/blob/main/docs/adr/0098-price-catalogue-updates-from-public-sources.md); this release fetches from OpenRouter
+only, and only from the command line.
 
 **Three modes.** `prices.refresh.enabled` in the chart picks one; the chart passes it to `koinon-api`
 as `--prices-refresh=auto|off|on` and knows nothing about providers:
@@ -160,9 +142,8 @@ that many tokens, as OpenRouter's SDK documents (ADR 0098), so it becomes `conte
 Several overrides combine as OpenRouter applies them: later ones win per rate, a rate an override
 does not set keeps the base price, and an override with a time condition is never a tier.
 
-**Known limits of this slice.** Time-of-day, batch, flex
-and priority prices, per-upstream prices and 1-hour cache writes are not imported. Not built yet (later
-slices of #265, tracked as separate issues): the models.dev, LiteLLM and genai-prices adapters, the
+**Known limits.** Time-of-day, batch, flex
+and priority prices, per-upstream prices and 1-hour cache writes are not imported. Not built yet: the models.dev, LiteLLM and genai-prices adapters, the
 admin API and the Platform Prices page, org-admin acceptance into org entries (with their retirement
 and the "source differs" mark), the in-app notice after an auto-apply, and the bill-gap view.
 
@@ -178,13 +159,12 @@ provider bills a bucket the entry does not price (an entry missing `cache_write`
 
 When a provider reports no usage (an aborted stream), Koinon estimates it and marks the entry. The
 method is in the ADR and in [the research](https://github.com/stateracloud/koinon/blob/main/docs/research/claude-token-estimation.md). OpenAI-family text is
-counted with tiktoken through `github.com/pkoukk/tiktoken-go` (MIT) and
-`github.com/pkoukk/tiktoken-go-loader` (MIT), which compile OpenAI's BPE files (also MIT) into the
-binary; nothing is downloaded at run time. Update both modules together and re-run `go test ./internal/estimate`.
+counted with tiktoken. The tokenizer data is compiled into the binary; nothing is downloaded at run time.
 
 ## Upgrading from the first release (per-model rates)
 
-Migration 00014 turns the rates set on each model into an org price entry (see ADR 0056, W4 amendment),
+The upgrade turns the rates set on each model into an org price entry (the design is in
+[ADR 0056](https://github.com/stateracloud/koinon/blob/main/docs/adr/0056-model-providers-pricing-and-budgets-per-org.md)),
 and `koinon-api` completes those entries at start from the matching default entry. Check three things:
 
 - Entries with **Needs review** on the Prices page matched no default entry and have generic estimate

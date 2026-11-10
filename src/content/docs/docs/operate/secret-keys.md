@@ -298,7 +298,7 @@ can already open every DEK they copied. Do this, in this order:
    repositories. Without a terminal `keys new-repositories` refuses unless you pass `--yes`, as
    `keys forget` does, because the older checkpoints are deleted. Running it again replaces the
    repositories again (a seed not yet done moves on to the newest epoch). These choices are recorded
-   in [ADR 0085](https://github.com/stateracloud/koinon/blob/main/docs/adr/0085-upgrade-compatibility-and-recovery-policy.md) decision 14 and #86.
+   in [ADR 0085](https://github.com/stateracloud/koinon/blob/main/docs/adr/0085-upgrade-compatibility-and-recovery-policy.md) decision 14.
 
    **After a database restore, run `koinon-api checkpoints resync --all` before `keys forget` or
    `keys new-repositories`.** A repository started after the dump is in the bucket but not in the
@@ -312,7 +312,7 @@ can already open every DEK they copied. Do this, in this order:
    at that number. A backup or seed that reaches a taken location fails at once with an error that
    names it and says to run `keys new-repositories --agent <id>`; it records the same, so that run
    picks the free number. The sweeper never deletes the blobs at a taken location: they belong to
-   the lost database's repository, and you delete them by hand once nothing in them is needed (#262).
+   the lost database's repository, and you delete them by hand once nothing in them is needed.
    A repository whose complete checkpoints the database records but that does not open with their
    password is not taken: the backup fails with "does not open with the password that wrote its …
    checkpoint(s)", and nothing is recorded. koinon-agentd uses the wrong bucket, or the repository's
@@ -483,7 +483,7 @@ first, and a KEK that changed meanwhile is refused then.
 | `keys.rewrap.started`, `keys.reencrypt.started` | as above | only with `--record-started`, before the loop, when there is a row to change |
 | `keys.generated` | `system koinon-api:keys` | `koinon-api` made the first KEK Secret or the saved-work key |
 | `keys.secret_created`, `keys.add`, `keys.activate`, `keys.bound` | `system koinon-api:key-admin` | the key-admin Job created the KEK Secret, added a KEK, recovered a lost active KEK, or bound a KEK to the install |
-| `keys.observed` | `system koinon-api:startup`, `system koinon-api:keyring-watch`, or the actor of the key command that found the gap | a start found the key set different from the last recorded key event (the first start always writes it, even with no KEK and no generated Secret: maintainer decision 2026-11-08); the running `koinon-api` saw the key set change and found it different; or a key command (`add`, `activate`, `retire`, the key-admin Job) found the live KEKs different from it and recorded that before its own event, under its own actor |
+| `keys.observed` | `system koinon-api:startup`, `system koinon-api:keyring-watch`, or the actor of the key command that found the gap | a start found the key set different from the last recorded key event (the first start always writes it, even with no KEK and no generated Secret); the running `koinon-api` saw the key set change and found it different; or a key command (`add`, `activate`, `retire`, the key-admin Job) found the live KEKs different from it and recorded that before its own event, under its own actor |
 
 The failure kinds of `keys.rewrap` and `keys.reencrypt` are a fixed set: `unknown_kek` (the envelope
 names a KEK the key set does not hold), `open` (the envelope did not authenticate: wrong key or
@@ -498,18 +498,17 @@ rows done so far and the failure, and the command fails; run it again once the d
 
 `--record-started` writes the `.started` event before the first row changes. If the chain cannot take
 it, the run is refused and says "nothing was changed": a run that could die half way is never started
-without its marker (maintainer decision 2026-11-08).
+without its marker.
 
 The key-admin Job waits for the chain at most `--wait` (5 minutes by default) in total, one budget per
 Job run, not per event. If it cannot read or write the chain, it prints a warning and succeeds; the
 Secret change stands and the next start records `keys.observed`. The CLI instead returns the
-not-recorded error. Both are maintainer decisions of 2026-11-08.
+not-recorded error.
 
 `koinon-api` does not know its Helm release name, so it lists the generated Secrets by the
 `koinon.dev/generated` label alone. Two releases in one namespace would see each other's generated
 Secrets in `keys.observed`, so one Koinon release per namespace stays the rule until release identity
-lands (#375, v0.2; maintainer decision
-2026-11-08).
+is added (planned for v0.2).
 
 The summary of a key event holds `before` and `after`, each `{keks: [{id, fingerprint, wrapped_by,
 binding}], active, retired, generated: [{secret_name, uid, created_at}]}`. It names KEKs by ID and
@@ -519,11 +518,11 @@ deleted and created again has a new UID, so the start after it writes `keys.obse
 
 `keys.observed` also appears on the first start after a KEK came from `secrets.kek.existingSecret`
 or from the ensure-secrets Job, since no command wrote it; those keys are never recorded as
-`keys.generated`, which is only for a key `koinon-api` made itself (maintainer decision 2026-11-08).
+`keys.generated`, which is only for a key `koinon-api` made itself.
 The lost-change `keys.observed` a key command writes carries that command's actor, not
-`koinon-api:startup` (maintainer decision 2026-11-08). `keys activate` now needs `--database-url`
+`koinon-api:startup`. `keys activate` now needs `--database-url`
 (the `DATABASE_URL` alias still works), like `add`, `retire` and `rewrap`, so that it can record its
-event (maintainer decision 2026-11-08).
+event.
 
 ### Platform settings in the install audit chain
 
@@ -534,7 +533,7 @@ changed in `before` and `after`. The first start writes every setting; a restart
 writes nothing; two replicas starting together write one event. Like the other start-up writes it is
 retried in the background every 30 seconds while the database refuses the install audit writer role.
 
-The list is the Go table `recordedSettings` in `internal/cmd/koinonapi/settings.go`: the auth and
+The list is fixed in the binary ([`settings.go`](https://github.com/stateracloud/koinon/blob/v0.1.0-rc.11/internal/cmd/koinonapi/settings.go) at the v0.1.0-rc.11 tag): the auth and
 session flags, the network and gateway flags, the key and wrapping flags (`kek-*`, `openbao-*`,
 `awskms-*`, the saved-work flags), `otlp-addr`, `otlp-token-dir`, `durable`, `run-cap-sweep-interval`,
 `chart-version` (the chart passes `.Chart.Version`) and `image-version`. A flag that names a Secret, a
@@ -583,7 +582,7 @@ address, is not served; the render check fails closed). DNS rebinding between th
 because the gateway resolves the name itself; the egress NetworkPolicy below is the hard limit.
 
 A platform admin allows internal upstreams in the chart value `egress.allowedInternalHosts` (the old name `providers.allowedInternalHosts` still works for one more release and is joined with it; the list covers model providers and remote MCP servers): names
-(optionally with a port), IPs or CIDRs, for example `["ollama.lab.example.com:11434", "10.7.0.0/24"]`.
+(optionally with a port), IPs or CIDRs, for example `["ollama.example.com:11434", "10.0.0.0/24"]`.
 
 **Gateway egress policy.** With `networkPolicy.enabled` the chart restricts agentgateway's egress with a
 standard `networking.k8s.io/v1` NetworkPolicy (no CNI-specific resources): DNS, `koinon-api`'s OTLP and
@@ -593,7 +592,7 @@ out. Allow an internal upstream there too, by address, with `networkPolicy.gatew
 ```yaml
 networkPolicy:
   gatewayEgressTo:
-    - to: [{ipBlock: {cidr: 10.7.0.0/24}}]
+    - to: [{ipBlock: {cidr: 10.0.0.0/24}}]
       ports: [{port: 11434}]
 ```
 
@@ -611,7 +610,7 @@ it (the default provider URL check still applies).
 
 A KMS is an option, not a mandate. The default keeps the KEKs in the Kubernetes Secret, as described
 above; it is fully supported and nothing here asks you to move. An install can opt in to have a KMS
-(OpenBao/Vault transit, old issue 416, or AWS KMS, old issue 417) wrap each KEK, so the Secret holds only ciphertext
+(OpenBao/Vault transit, or AWS KMS) wrap each KEK, so the Secret holds only ciphertext
 that is useless without the KMS. Both are set with `secrets.kek.kms` (below).
 
 What changes once you opt in (ADR 0085 decision 12):
@@ -637,7 +636,7 @@ What changes once you opt in (ADR 0085 decision 12):
   stay: IDs are never reused, and the history is what a later `keys forget` needs.
 - `keys status` also says whether the active KEK's wrapping key answers, and warns when the active KEK
   is a local one on an install that has a KMS configured. `keys activate` refuses a local KEK while a
-  KMS is the configured primary (procoduck, 2026-11-03); to roll back, set the configured wrapping to
+  KMS is the configured primary; to roll back, set the configured wrapping to
   local first, then activate. koinon-api and the reconciler export
   `koinon_kek_active_reachable{backend}` (1 or 0), probed on every reload. A local install always
   reads 1 and logs nothing. If the KMS is down when a pod starts, the pod does not start (it cannot
@@ -746,7 +745,7 @@ kubectl -n koinon patch secret koinon-kek --type=merge \
 
 Back the Secret up (`keys export`) as soon as the pods are running again.
 
-### The install binding (old issue 615)
+### The install binding
 
 Every KEK the key-admin Job wraps is bound to the install: the KMS call carries the install ID as
 part of its authenticated data, so the wrapped KEK opens only next to the database it was made for.
@@ -755,7 +754,7 @@ database restored into the wrong install, then fails to load with "cannot open e
 it was wrapped for install A and this is install B", the same error as a wrong key, never as a KMS
 outage.
 
-**Where the install ID comes from.** The first migration of a release with old issue 615 writes a random
+**Where the install ID comes from.** The first migration of a release with the install binding writes a random
 UUID into the table `install_identity` of the database. Triggers refuse UPDATE, DELETE and TRUNCATE
 of it; they guard against mistakes, not against the database owner: the table's owner can DROP the
 table or `ALTER TABLE … DISABLE TRIGGER`, and `pg_restore --disable-triggers` and
@@ -803,7 +802,7 @@ Rejected sources, and why: a chart value is lost on a reinstall that forgets it 
 the data; a generated Secret would be backed up and restored with the KEK Secret, which defeats the
 binding; the namespace or cluster UID changes on a move or a reinstall that keeps the data.
 
-**KEKs wrapped before old issue 615 keep working.** They are stored in the old form (`"fmt":1`) and open as
+**KEKs wrapped before the install binding keep working.** They are stored in the old form (`"fmt":1`) and open as
 before; `keys status` shows them as `…, unbound` in WRAPPED BY and lists them. koinon-api and the
 reconciler export `koinon_kek_unbound` (no labels), the number of KMS-wrapped KEKs in the loaded
 key set that are not bound, set on every load (at start and about once a minute); local KEKs are
@@ -857,16 +856,16 @@ Binding cannot help here: `rewrapUnbound` has to open a KEK to bind it. Instead:
 
 **Rotate as well if an old backup may have leaked.** The marker stops an old KEK Secret backup only
 where this database is: an install whose database lacks the marker (a clone taken before it was set, a
-rollback below old issue 615, another install on the same KMS key) still opens that backup's unbound KEKs. If
+rollback below the install binding, another install on the same KMS key) still opens that backup's unbound KEKs. If
 a KEK Secret backup from before the rewrap may be in the wrong hands, rotate the KEKs as well (add,
 activate, rewrap, retire, as above): only rotation makes an old backup useless everywhere.
 
-**Rolling back below old issue 615.** A bound KEK is stored as `"fmt":2`, which a release before old issue 615
+**Rolling back below the install binding.** A bound KEK is stored as `"fmt":2`, which a release before the install binding
 refuses ("unsupported format 2"): its pods fail closed and never misread it. Every new KMS-wrapped
-KEK is bound, so before rolling back below old issue 615 use the steps in "Rolling back below the release that
+KEK is bound, so before rolling back below the install binding use the steps in "Rolling back below the release that
 added key wrapping" below (back to local KEKs), or roll back to a key set that held only unbound
 KEKs. Leave `rewrapUnbound` off until you will not roll back that far: once it binds the last KEK the
-marker is set, the Job says so, and a rollback below old issue 615 no longer works with this key set (those
+marker is set, the Job says so, and a rollback below the install binding no longer works with this key set (those
 releases cannot read bound KEKs, and the unbound backups no longer open on this database once you
 come forward again).
 

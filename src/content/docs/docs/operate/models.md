@@ -108,7 +108,7 @@ in git in clear text.
 Services' ClusterIPs), shared or cloud metadata addresses, at a name without a dot, or at a Service in
 Koinon's own namespace; odd spellings such as `127.1` or `0x7f.0.0.1` are read as the addresses they are.
 A platform admin allows an internal upstream in the chart value `egress.allowedInternalHosts` (`providers.allowedInternalHosts` is its deprecated old name; both are read for one more release; names,
-IPs or CIDRs, for example `ollama.lab.example.com:11434`) and, when the chart's gateway egress policy is
+IPs or CIDRs, for example `ollama.example.com:11434`) and, when the chart's gateway egress policy is
 on, in `networkPolicy.gatewayEgressTo`. The runbook has the details and limits. The same list and the same egress policy cover the
 [remote MCP servers](/docs/operate/mcp-servers/) an org adds.
 
