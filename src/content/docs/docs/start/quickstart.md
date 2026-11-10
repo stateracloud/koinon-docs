@@ -361,23 +361,8 @@ the images straight into kind, and its browser suite goes through the Vite dev s
 
 ## How these steps are tested
 
-The end-to-end test, [`test/e2e/run.sh`](https://github.com/stateracloud/koinon/blob/main/test/e2e/run.sh),
-builds a kind cluster and then runs the `e1` blocks above, by name, through
-[`hack/docs-e1.sh`](https://github.com/stateracloud/koinon/blob/main/hack/docs-e1.sh). It does not
-keep its own copy of the commands. Its `kubectl` and `helm` are wrappers that add the kind context.
-Three things differ: `values.yaml` holds the kind values with the fake GitHub instead of github.com,
-the provider is the fake model server instead of OpenRouter (the Go suite declares it with
-`model-provider.yaml`; the browser suite adds it on the Providers page, as step 4 does), and the
-wrappers add the kind context.
-
-`make docs-check` runs on every pull request. It fails when:
-
-- the `e1` blocks differ from
-  [`test/e2e/quickstart.golden.sh`](https://github.com/stateracloud/koinon/blob/main/test/e2e/quickstart.golden.sh),
-  the commands the test runs. Change a command and the check shows the difference. Update the golden
-  file in the same pull request;
-- `run.sh` does not run an `e1` block, or runs one that does not exist;
-- a `chart-values` block is not valid chart values;
-- a bold label in the browser steps is missing from the Playwright spec;
-- a version on the Prerequisites page differs from `test/e2e/kind/up.sh`, `internal/preflight` or the
-  chart.
+The commands in the blocks marked `e1` are the ones Koinon's end-to-end test runs, in a kind cluster,
+for the release named in the label at the top of every page. This site checks on every change that
+its pages show the same commands as that release. Three things differ in the test: `values.yaml`
+holds the kind values with a fake GitHub instead of github.com, the model provider is a fake model
+server instead of OpenRouter, and its `kubectl` and `helm` add the kind context.
