@@ -151,7 +151,7 @@
   --sl-color-hairline: var(--kn-divider);
   --sl-color-hairline-shade: var(--kn-divider);
   --sl-color-backdrop-overlay: #24233c8a;
-  --sl-shadow-sm: 0 1px 2px #24233c1a;
+  --sl-shadow-sm: 0 1px 2px #24233c1a, 0 3px 10px #24233c12;
   --sl-shadow-md: var(--kn-shadow-md);
   --sl-shadow-lg: var(--kn-shadow-md);
 }
