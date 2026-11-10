@@ -15,6 +15,10 @@
   // still gets a preview address (`wrangler versions upload`).
   "workers_dev": false,
   "preview_urls": true,
+  // Workers Builds runs `wrangler preview` for a branch that is not `main`. That command needs this
+  // block; it stays empty because a preview has no settings of its own (wrangler 4.135.0 or later).
+  // https://developers.cloudflare.com/workers/previews/configuration/ read on 2026-11-10.
+  "previews": {},
   "assets": {
     "directory": "./dist",
     // A request that matches no file gets the nearest 404.html with status 404.
