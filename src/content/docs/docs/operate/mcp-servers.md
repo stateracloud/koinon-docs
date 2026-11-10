@@ -129,7 +129,7 @@ Known limit: a secret split across two arguments and encoded as base64 with long
 between the characters (each half longer than 1024 bytes) is not matched. The same holds when that
 padded base64 is itself wrapped in base64, `\u` escapes or percent-encoding. The same text in one
 argument is matched. Do not rely on the text check against an agent that is trying to hide data; keep
-tools that send data out in the Ask tier. The general fix is tracked in #369.
+tools that send data out in the Ask tier. The general fix is planned, not built yet.
 
 ## Health
 
