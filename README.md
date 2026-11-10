@@ -52,7 +52,9 @@ page together. Run the check with bash 5 (`brew install bash` on macOS). For an 
 Cloudflare builds this repository from GitHub (Workers Builds) and serves `dist/` as static assets.
 A merge to `main` deploys to <https://koinon.stateracloud.com>; the address is the custom domain in
 `wrangler.jsonc`. Cloudflare also builds a preview of each pull request; the check
-`Workers Builds: koinon-docs` on the pull request shows the result.
+`Workers Builds: koinon-docs` on the pull request shows the result. Cloudflare adds no comment
+with the address. The preview is at `https://<branch>-koinon-docs.stateracloud.workers.dev`, where
+`<branch>` is the branch name with each `/` changed to `-`. It goes away with the branch.
 Nothing in this repository's CI deploys. CI runs four checks: `build`, `commands`, `gitleaks`, `dco`.
 
 ## Contributing
