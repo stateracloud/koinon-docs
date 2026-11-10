@@ -8,6 +8,13 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "koinon-docs",
   "compatibility_date": "2026-11-10",
+  // The public address. A production deploy attaches it: Cloudflare makes the DNS record and the
+  // certificate. The zone stateracloud.com is in the same Cloudflare account.
+  "routes": [{ "pattern": "koinon.stateracloud.com", "custom_domain": true }],
+  // Production is served at the address above only, not at a workers.dev name. Each pull request
+  // still gets a preview address (`wrangler versions upload`).
+  "workers_dev": false,
+  "preview_urls": true,
   "assets": {
     "directory": "./dist",
     // A request that matches no file gets the nearest 404.html with status 404.
