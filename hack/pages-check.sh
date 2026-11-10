@@ -123,14 +123,22 @@ else
     cat "$tmp/secrets.out" >&2
     fail "a model-provider or mcp-server manifest does not parse with the code at $ref (internal/declarative/docs_test.go)"
   }
-  missing=0
+  # Only a PASS line counts. The ok line is printed only when every test passed.
+  passed=1
   for t in $tests; do
-    if ! grep -qE "^--- PASS: $t( |$)" "$tmp/secrets.out"; then
-      missing=1
-      grep -qE "^--- (FAIL|SKIP): $t( |$)" "$tmp/secrets.out" || fail "the test $t did not run: the main repository no longer has the test at $ref, so check 2 needs a new source"
+    if grep -qE "^--- PASS: $t( |$)" "$tmp/secrets.out"; then
+      continue
+    fi
+    passed=0
+    if grep -qE "^--- SKIP: $t( |$)" "$tmp/secrets.out"; then
+      fail "the test $t was skipped at $ref: a skipped test checks nothing, so check 2 needs a new source from the main repository"
+    elif grep -qE "^--- FAIL: $t( |$)" "$tmp/secrets.out"; then
+      fail "the test $t failed at $ref (see the output above)"
+    else
+      fail "the test $t was not found at $ref: the main repository no longer has the test, so check 2 needs a new source"
     fi
   done
-  [[ $missing -eq 0 ]] && ok "the model-provider and mcp-server manifests in the pages parse with the code at $ref ($tests passed)"
+  [[ $passed -eq 1 ]] && ok "the model-provider and mcp-server manifests in the pages parse with the code at $ref ($tests passed)"
 fi
 
 # 3. UI labels.
@@ -175,10 +183,10 @@ links=$tmp/links.list
 {
   find "$pages" -type f \( -name '*.md' -o -name '*.mdx' \)
   find "$root/src/content/docs" -maxdepth 1 -type f \( -name '*.md' -o -name '*.mdx' \)
-  [[ -f $root/astro.config.mjs ]] && echo "$root/astro.config.mjs"
-  [[ -d $root/src/components ]] && find "$root/src/components" -type f
+  if [[ -f $root/astro.config.mjs ]]; then echo "$root/astro.config.mjs"; fi
+  if [[ -d $root/src/components ]]; then find "$root/src/components" -type f; fi
 } | sort -u | while IFS= read -r f; do
-  grep -hoE 'https://github\.com/stateracloud/koinon/(blob|tree)/[A-Za-z0-9_.-]+/[A-Za-z0-9_./#?=&%-]*' "$f" || true
+  grep -hoE 'https://(github\.com/stateracloud/koinon/(blob|tree)|raw\.githubusercontent\.com/stateracloud/koinon)/[A-Za-z0-9_.-]+/[A-Za-z0-9_./#?=&%-]*' "$f" || true
 done | sort -u >"$links"
 koinon_list_dir "$src" >"$tmp/tag.paths"
 main_ready=1
@@ -196,22 +204,42 @@ fi
 ntag=0
 nmain=0
 nskip=0
+punct='[.,;:!?]$'
+has_path() { # has_path <list> <f|d> <path>
+  grep -qFx -- "$2"$'\t'"$3" "$1"
+}
 while IFS= read -r url; do
-  rest=${url#https://github.com/stateracloud/koinon/}
-  rest=${rest#*/}              # drop blob/ or tree/
+  u=$url
+  while [[ $u =~ $punct ]]; do u=${u%?}; done   # a full stop or similar at the end of a sentence
+  if [[ $u == https://raw.githubusercontent.com/stateracloud/koinon/* ]]; then
+    kind=blob
+    rest=${u#https://raw.githubusercontent.com/stateracloud/koinon/}
+  else
+    rest=${u#https://github.com/stateracloud/koinon/}
+    kind=${rest%%/*}
+    rest=${rest#*/}
+  fi
   rev=${rest%%/*}
   path=${rest#*/}
   path=${path%%[#?]*}
   path=${path%/}
+  want=f
+  [[ $kind == tree ]] && want=d
   if [[ $rev == "$ref" ]]; then
-    ntag=$((ntag + 1))
-    grep -qFx -- "$path" "$tmp/tag.paths" || fail "the pages link to $path at $ref, which does not exist: $url"
+    list=$tmp/tag.paths; where="at $ref"; ntag=$((ntag + 1))
   elif [[ $rev == main ]]; then
     if [[ $main_ready -eq 0 ]]; then nskip=$((nskip + 1)); continue; fi
-    nmain=$((nmain + 1))
-    grep -qFx -- "$path" "$tmp/main.paths" || fail "the pages link to $path on main, which does not exist: $url"
+    list=$tmp/main.paths; where="on main"; nmain=$((nmain + 1))
   else
     fail "the pages link to revision '$rev', but a link must use main or $ref: $url"
+    continue
+  fi
+  if has_path "$list" "$want" "$path"; then
+    :
+  elif has_path "$list" f "$path" || has_path "$list" d "$path"; then
+    fail "the pages link to $path $where with '$kind', but it is a $([[ $want == f ]] && echo directory || echo file): $url"
+  else
+    fail "the pages link to $path $where, which does not exist: $url"
   fi
 done <"$links"
 [[ -s $links ]] || fail "no links into the Koinon repository found in the pages"

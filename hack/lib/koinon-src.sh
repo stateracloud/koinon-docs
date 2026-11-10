@@ -45,10 +45,12 @@ koinon_src() {
   echo "fetched the Koinon sources at $ref"
 }
 
-# koinon_main_paths <tmp> <outfile>: writes every file and directory path (relative, one per line) of
-# the main branch of the Koinon repository to <outfile>. With KOINON_MAIN_SRC set (an offline run),
-# the paths come from that checkout or export. Otherwise main is fetched shallow, without file
-# contents (a partial clone), and listed with git ls-tree.
+# Path lists have one line per path: "f<TAB>path" for a file, "d<TAB>path" for a directory.
+#
+# koinon_main_paths <tmp> <outfile>: writes the path list of the main branch of the Koinon repository
+# to <outfile>. With KOINON_MAIN_SRC set (an offline run), the list comes from that checkout or
+# export. Otherwise main is fetched shallow, without file contents (a partial clone), and listed
+# with git ls-tree.
 koinon_main_paths() {
   local tmp=$1 out=$2 repo
   if [[ -n ${KOINON_MAIN_SRC:-} ]]; then
@@ -58,11 +60,22 @@ koinon_main_paths() {
   repo=${KOINON_REPO:-https://github.com/stateracloud/koinon.git}
   git init -q "$tmp/koinon-main"
   git -C "$tmp/koinon-main" fetch -q --depth 1 --filter=blob:none "$repo" refs/heads/main || { echo "cannot fetch main from $repo" >&2; exit 2; }
-  git -C "$tmp/koinon-main" ls-tree -r -t --name-only FETCH_HEAD >"$out" || { echo "cannot list main" >&2; exit 2; }
+  git -C "$tmp/koinon-main" ls-tree -r -t FETCH_HEAD | awk -F'\t' '{ split($1, a, " "); print (a[2] == "tree" ? "d" : "f") "\t" $2 }' >"$out" || { echo "cannot list main" >&2; exit 2; }
 }
 
-# koinon_list_dir <dir>: every file and directory path under <dir>, relative, without .git and
-# node_modules.
+# koinon_list_dir <dir>: the path list of <dir>. A git work tree lists tracked files and their
+# parent directories (so untracked build output cannot make a dead link pass). A plain export is
+# listed with find, without .git and node_modules.
 koinon_list_dir() {
-  (cd "$1" && find . \( -name .git -o -name node_modules \) -prune -o -print | sed -e 's|^\./||' -e '/^\.$/d')
+  if [[ -e $1/.git ]] && git -C "$1" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git -C "$1" ls-files | awk '
+      { print "f\t" $0
+        n = split($0, p, "/"); d = ""
+        for (i = 1; i < n; i++) { d = (d == "" ? p[i] : d "/" p[i]); if (!(d in seen)) { seen[d] = 1; print "d\t" d } } }'
+  else
+    (cd "$1" && {
+      find . \( -name .git -o -name node_modules \) -prune -o -type f -print | sed -e 's|^\./||' -e 's|^|f\t|'
+      find . \( -name .git -o -name node_modules \) -prune -o -type d -print | sed -e 's|^\./||' -e '/^\.$/d' -e 's|^|d\t|'
+    })
+  fi
 }
