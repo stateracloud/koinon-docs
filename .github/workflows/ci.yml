@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Four checks. There is no deploy job: Cloudflare builds this repository from GitHub itself
+# (Workers Builds). Actions are pinned by commit SHA, the same ones the Koinon repository uses.
+#   build     the site builds, and the build fails on a broken internal link (starlight-links-validator)
+#   commands  the `sh e1=<name>` blocks equal the Koinon repository's command files at koinon.ref
+#   gitleaks  no secret in any commit of the range
+#   dco       every commit of a pull request has a Signed-off-by line that matches its author
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ASTRO_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  commands:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: hack/commands-check.sh
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    env:
+      # Same version and checksum as the Koinon repository (hack/versions.env there).
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256_AMD64: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: install gitleaks
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256_AMD64}  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum -c -
+          tar xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+      - name: scan
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if [[ $EVENT == pull_request ]]; then
+            range="$PR_BASE..$PR_HEAD"
+          elif [[ $BEFORE =~ ^0+$ ]]; then
+            range="$AFTER"
+          else
+            range="$BEFORE..$AFTER"
+          fi
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner --verbose --log-opts="$range" .
+
+  dco:
+    # A push to main has no pull request range to check.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: check sign-off
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          fail=0
+          for c in $(git rev-list --no-merges "$BASE..$HEAD"); do
+            author="$(git show -s --format='%an <%ae>' "$c")"
+            if ! git show -s --format='%(trailers:key=Signed-off-by,valueonly)' "$c" | grep -qxF "$author"; then
+              echo "::error::commit $(git show -s --format='%h %s' "$c") lacks 'Signed-off-by: $author'"
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "Fix with: git commit --amend -s (an unpushed last commit), or git rebase --signoff main."
+          fi
+          exit $fail
