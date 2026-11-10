@@ -46,26 +46,48 @@ export default defineConfig({
         {
           label: 'Install and operate',
           items: [
-            'docs/operate/models',
-            'docs/operate/prices',
-            'docs/operate/budgets',
-            'docs/operate/mcp-servers',
-            'docs/operate/github-app',
-            'docs/operate/ghes',
-            'docs/operate/gitea',
-            'docs/operate/oidc',
-            'docs/operate/gateway-modes',
-            'docs/operate/agent-health',
-            'docs/operate/audit',
-            'docs/operate/audit-export',
-            'docs/operate/retention',
-            'docs/operate/metrics',
-            'docs/operate/private-registries',
-            'docs/operate/upgrading',
-            'docs/operate/backup-restore',
-            'docs/operate/default-prices',
-            'docs/operate/sandbox-break-glass',
-            'docs/operate/secret-keys',
+            {
+              label: 'Install and upgrade',
+              collapsed: true,
+              items: [
+                'docs/operate/private-registries',
+                'docs/operate/upgrading',
+                'docs/operate/backup-restore',
+                { label: 'Secret keys', slug: 'docs/operate/secret-keys' },
+              ],
+            },
+            {
+              label: 'Sign-in and code hosts',
+              collapsed: true,
+              items: ['docs/operate/oidc', 'docs/operate/github-app', 'docs/operate/ghes', 'docs/operate/gitea'],
+            },
+            {
+              label: 'Models and tools',
+              collapsed: true,
+              items: ['docs/operate/models', 'docs/operate/mcp-servers', 'docs/operate/gateway-modes'],
+            },
+            {
+              label: 'Cost',
+              collapsed: true,
+              items: [
+                'docs/operate/prices',
+                { label: 'Default price list', slug: 'docs/operate/default-prices' },
+                'docs/operate/budgets',
+              ],
+            },
+            {
+              label: 'Sandboxes',
+              collapsed: true,
+              items: [
+                { label: 'Stuck sandboxes', slug: 'docs/operate/agent-health' },
+                { label: 'Sandbox break-glass', slug: 'docs/operate/sandbox-break-glass' },
+              ],
+            },
+            {
+              label: 'Audit and monitoring',
+              collapsed: true,
+              items: ['docs/operate/audit', 'docs/operate/audit-export', 'docs/operate/retention', 'docs/operate/metrics'],
+            },
           ],
         },
         {

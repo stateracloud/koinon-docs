@@ -202,3 +202,10 @@ pre {
 .sl-markdown-content a:not(:where(.not-content *)):hover {
   color: var(--kn-purple-800);
 }
+
+/* Sidebar sub-groups: smaller than the top-level group label, a little stronger than a page link. */
+.sidebar-content details details > summary .large {
+  font-size: var(--sl-text-sm);
+  font-weight: 500;
+  color: var(--sl-color-white);
+}
