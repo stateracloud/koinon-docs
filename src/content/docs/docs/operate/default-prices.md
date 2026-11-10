@@ -27,8 +27,9 @@ An org admin adds prices of their own with `POST /admin/v1/prices` (or `PriceSer
 They win over the default list. A price has a name; setting the same name again adds a version that
 applies from its `validFrom` (default now), and earlier versions never change, so past requests keep
 the price they were charged at. `DELETE /admin/v1/prices/{name}` ends the price. Every change is audited. The UI is the *Prices*
-page (Settings, owners and admins); the per-model `rates` of the first release were folded into org prices
-when you upgraded, and are refused now.
+page (Settings, owners and admins). An org price with a non-zero rate needs `max_output`, and the API
+refuses one without it. On an upgrade from a release that had per-model `rates`, those were folded into org
+prices, and `rates` are refused now.
 
 ## The platform price list (updates between releases)
 
@@ -160,6 +161,8 @@ provider bills a bucket the entry does not price (an entry missing `cache_write`
 When a provider reports no usage (an aborted stream), Koinon estimates it and marks the entry. The
 method is in the ADR and in [the research](https://github.com/stateracloud/koinon/blob/main/docs/research/claude-token-estimation.md). OpenAI-family text is
 counted with tiktoken. The tokenizer data is compiled into the binary; nothing is downloaded at run time.
+An aborted response with no usage settles at the request's `max_tokens`, or at the price's `max_output`
+when the request's limit was not logged.
 
 ## Upgrading from the first release (per-model rates)
 
