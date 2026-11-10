@@ -38,8 +38,9 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 quickstart=${QUICKSTART_PAGE:-$root/src/content/docs/docs/start/quickstart.md}
 backup=${BACKUP_PAGE:-$root/src/content/docs/docs/operate/backup-restore.md}
-ref=$(tr -d '[:space:]' <"$root/koinon.ref")
-[[ -n $ref ]] || { echo "koinon.ref is empty" >&2; exit 2; }
+# shellcheck source=lib/koinon-src.sh source-path=SCRIPTDIR
+. "$root/hack/lib/koinon-src.sh"
+ref=$(koinon_ref "$root")
 
 failures=0
 fail() { echo "FAIL: $*" >&2; failures=$((failures + 1)); }
@@ -52,20 +53,8 @@ trap 'rm -rf "$tmp"' EXIT
 golden_rel=test/e2e/quickstart.golden.sh
 runner_rel=test/e2e/backup-restore.sh
 guide_rel=docs/site/src/content/docs/guides/backup-restore.md
-if [[ -n ${KOINON_SRC:-} ]]; then
-  src=$KOINON_SRC
-  echo "using the local Koinon sources in $src (pinned release: $ref)"
-else
-  src=$tmp/koinon
-  repo=${KOINON_REPO:-https://github.com/stateracloud/koinon.git}
-  git init -q "$src"
-  git -C "$src" fetch -q --depth 1 "$repo" "refs/tags/$ref:refs/tags/$ref" || { echo "cannot fetch $ref from $repo" >&2; exit 2; }
-  for f in "$golden_rel" "$runner_rel" "$guide_rel"; do
-    mkdir -p "$src/$(dirname "$f")"
-    git -C "$src" show "refs/tags/$ref:$f" >"$src/$f" || { echo "$f does not exist at $ref" >&2; exit 2; }
-  done
-  echo "fetched the Koinon sources at $ref"
-fi
+koinon_src "$tmp" "$golden_rel" "$runner_rel" "$guide_rel"
+src=$KOINON_SRC_DIR
 golden=$src/$golden_rel
 runner=$src/$runner_rel
 guide=$src/$guide_rel
