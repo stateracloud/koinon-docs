@@ -8,16 +8,16 @@ the pages.
 The branch is merged in the same pull request that moves `koinon.ref` to the new tag. Do not merge it
 before that.
 
-`hack/commands-check.sh` cannot pass on this branch. It compares with the tag in `koinon.ref`, and the
-new tag does not exist yet.
+The scripts on this branch already target the next tag. `hack/commands-check.sh` reads the command
+files `test/e2e/commands/*.e1`, and `hack/pages-check.sh` runs the page tests of the release with
+`KOINON_PAGES_DIR`. So the `commands` check fails until `koinon.ref` moves: the tag in `koinon.ref`
+(v0.1.0-rc.11) has neither the command files nor `internal/declarative/pages_test.go`.
 
-When `koinon.ref` moves:
+The release pull request changes only `koinon.ref`, and deletes this file. It needs a tag that has both
+the command files and `pages_test.go`. The workflow file needs no change.
 
-- `hack/commands-check.sh` must read `test/e2e/commands/quickstart.e1` and
-  `test/e2e/commands/backup-restore.e1` from the main repository. `test/e2e/quickstart.golden.sh` no
-  longer exists.
-- `hack/pages-check.sh` must set `KOINON_PAGES_DIR` for the manifest tests, in place of the copy
-  workaround.
+Links to the Koinon repository on these pages use `main`, because the paths they name are not in
+the old tag (for example `docs/dev/prices.md`).
 
 Pull requests of the main repository (`stateracloud/koinon`) whose page changes this branch carries:
 

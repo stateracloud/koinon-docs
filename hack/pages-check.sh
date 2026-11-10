@@ -17,16 +17,12 @@
 #      <rev> is the tag of koinon.ref (checked in that release) or main (checked in main). Any other
 #      <rev> is a failure. The site build checks internal links only.
 #
-# Ported from hack/docs-check.sh (steps 3, 3b, 4 and 5) of stateracloud/koinon at the release in
-# koinon.ref. The old repository kept the pages in docs/site; they are here now.
+# Ported from hack/docs-check.sh (steps 3, 3b, 4 and 5) of stateracloud/koinon.
 #
-# Limit of check 2: the Go tests of the release read the pages from hard-coded paths
-# (docs/site/src/content/docs/quickstart.md, guides/models.md, guides/mcp-servers.md) and have no
-# setting for another place. So the script copies the sources of the release to a temporary
-# directory and puts the pages of this repository at those paths. The release has to keep the file
-# names and the block markers (yaml model-provider, yaml mcp-server) for this to work.
-# TODO(stateracloud/koinon issue 491): ask the Koinon repository for an environment variable for the
-# pages directory, or for a pages-parsing tool, and drop the copy.
+# Check 2 runs the Go tests of the release with KOINON_PAGES_DIR set to the pages directory of this
+# repository. It also requires that the quickstart and the models page each have a model-provider
+# block and the MCP servers page has an mcp-server block. The scripts of this branch target a release
+# that has internal/declarative/pages_test.go; an earlier release fails check 2 with a message.
 #
 # Usage:  hack/pages-check.sh
 # Env:    KOINON_SRC   a local Koinon checkout or export at the pinned release, for offline runs.
@@ -104,41 +100,44 @@ done <"$tmp/blocks.list"
 [[ $i -gt 0 ]] || fail "no chart-values blocks found"
 [[ $failures -eq $before ]] && ok "$i chart-values blocks checked with helm lint and template"
 
-# 2. Declarative Secrets shown in the pages. The tests read fixed paths, so run them in a copy.
-work=$tmp/work
-mkdir -p "$work"
-# Copy only what the Go test needs: no .git, node_modules, build output or web/ and docs/ trees.
-(cd "$src" && tar --exclude=.git --exclude=node_modules --exclude=dist --exclude=./web --exclude=./docs \
-  --exclude=./.claude --exclude=./.codegraph -cf - .) | tar -xf - -C "$work"
-site=$work/docs/site/src/content/docs
-mkdir -p "$site/guides"
-cp "$quickstart" "$site/quickstart.md"
-cp "$models" "$site/guides/models.md"
-cp "$mcp" "$site/guides/mcp-servers.md"
+# 2. Declarative Secrets shown in the pages. The Go tests of the release read the pages from the
+# directory in KOINON_PAGES_DIR (internal/declarative/pages_test.go). They skip without it, and a
+# skipped test fails this check.
+before=$failures
 tests="TestDocumentedSecretsParse TestDocumentedMCPServerSecretsParse"
-if [[ ! -f $src/internal/declarative/docs_test.go ]]; then
-  fail "internal/declarative/docs_test.go does not exist at $ref: the main repository no longer has the test, so check 2 needs a new source"
+pages_test_rel=internal/declarative/pages_test.go
+if [[ ! -f $src/$pages_test_rel ]]; then
+  fail "$pages_test_rel does not exist at $ref: this site needs a Koinon release that has it (it reads the pages from KOINON_PAGES_DIR); move koinon.ref to such a release"
 else
-  (cd "$work" && go test -count=1 -v -run '^(TestDocumentedSecretsParse|TestDocumentedMCPServerSecretsParse)$' ./internal/declarative) >"$tmp/secrets.out" 2>&1 || {
-    cat "$tmp/secrets.out" >&2
-    fail "a model-provider or mcp-server manifest does not parse with the code at $ref (internal/declarative/docs_test.go)"
-  }
-  # Only a PASS line counts. The ok line is printed only when every test passed.
+  # The pages that must carry a block. The Go tests count blocks over the whole directory only.
+  block_count() { grep -c -- "^\`\`\`yaml $2\$" "$1" || true; }
+  for f in "$quickstart" "$models"; do
+    [[ $(block_count "$f" model-provider) -ge 1 ]] || fail "$f has no yaml model-provider block"
+  done
+  [[ $(block_count "$mcp" mcp-server) -ge 1 ]] || fail "$mcp has no yaml mcp-server block"
+  # The directory has to be absolute: go test runs in the package directory.
+  pages_abs=$(cd "$pages" && pwd)
   passed=1
+  (cd "$src" && KOINON_PAGES_DIR=$pages_abs go test -count=1 -v -run '^(TestDocumentedSecretsParse|TestDocumentedMCPServerSecretsParse)$' ./internal/declarative) >"$tmp/secrets.out" 2>&1 || {
+    cat "$tmp/secrets.out" >&2
+    fail "a model-provider or mcp-server manifest does not parse with the code at $ref ($pages_test_rel)"
+    passed=0
+  }
+  # Only a PASS line counts. The ok line is printed only when go test exited 0 and every test passed.
   for t in $tests; do
     if grep -qE "^--- PASS: $t( |$)" "$tmp/secrets.out"; then
       continue
     fi
     passed=0
     if grep -qE "^--- SKIP: $t( |$)" "$tmp/secrets.out"; then
-      fail "the test $t was skipped at $ref: a skipped test checks nothing, so check 2 needs a new source from the main repository"
+      fail "the test $t was skipped at $ref: a skipped test checks nothing (is KOINON_PAGES_DIR read by this release?)"
     elif grep -qE "^--- FAIL: $t( |$)" "$tmp/secrets.out"; then
       fail "the test $t failed at $ref (see the output above)"
     else
-      fail "the test $t was not found at $ref: the main repository no longer has the test, so check 2 needs a new source"
+      fail "the test $t was not found at $ref: the release does not have it, so check 2 has no source"
     fi
   done
-  [[ $passed -eq 1 ]] && ok "the model-provider and mcp-server manifests in the pages parse with the code at $ref ($tests passed)"
+  [[ $passed -eq 1 && $failures -eq $before ]] && ok "the model-provider and mcp-server manifests in the pages parse with the code at $ref ($tests passed)"
 fi
 
 # 3. UI labels.
@@ -208,9 +207,8 @@ punct='[.,;:!?]$'
 has_path() { # has_path <list> <f|d> <path>
   grep -qFx -- "$2"$'\t'"$3" "$1"
 }
-while IFS= read -r url; do
-  u=$url
-  while [[ $u =~ $punct ]]; do u=${u%?}; done   # a full stop or similar at the end of a sentence
+parse_link() { # parse_link <url>: sets kind, rev and path (empty path: the repository root)
+  local u=$1 rest
   if [[ $u == https://raw.githubusercontent.com/stateracloud/koinon/* ]]; then
     kind=blob
     rest=${u#https://raw.githubusercontent.com/stateracloud/koinon/}
@@ -220,11 +218,19 @@ while IFS= read -r url; do
     rest=${rest#*/}
   fi
   rev=${rest%%/*}
-  path=${rest#*/}
+  if [[ $rest == */* ]]; then path=${rest#*/}; else path=""; fi
   path=${path%%[#?]*}
   path=${path%/}
-  want=f
-  [[ $kind == tree ]] && want=d
+}
+# exists <list> <kind> <path>: 0 when the path is of the wanted kind. The root directory always is.
+exists() {
+  if [[ -z $3 ]]; then [[ $2 == tree ]]; return; fi
+  has_path "$1" "$([[ $2 == tree ]] && echo d || echo f)" "$3"
+}
+while IFS= read -r url; do
+  u=$url
+  while [[ $u =~ $punct ]]; do u=${u%?}; done   # a full stop or similar at the end of a sentence
+  parse_link "$u"
   if [[ $rev == "$ref" ]]; then
     list=$tmp/tag.paths; where="at $ref"; ntag=$((ntag + 1))
   elif [[ $rev == main ]]; then
@@ -234,10 +240,19 @@ while IFS= read -r url; do
     fail "the pages link to revision '$rev', but a link must use main or $ref: $url"
     continue
   fi
-  if has_path "$list" "$want" "$path"; then
-    :
+  if exists "$list" "$kind" "$path"; then
+    continue
+  fi
+  # The stripped punctuation may be part of the path (a file name that ends in a full stop).
+  if [[ $u != "$url" ]]; then
+    parse_link "$url"
+    if exists "$list" "$kind" "$path"; then continue; fi
+    parse_link "$u"
+  fi
+  if [[ -z $path ]]; then
+    fail "the pages link to the repository root $where with '$kind'; use a link of the form tree/<rev>/ for the root: $url"
   elif has_path "$list" f "$path" || has_path "$list" d "$path"; then
-    fail "the pages link to $path $where with '$kind', but it is a $([[ $want == f ]] && echo directory || echo file): $url"
+    fail "the pages link to $path $where with '$kind', but it is a $([[ $kind == tree ]] && echo file || echo directory): $url"
   else
     fail "the pages link to $path $where, which does not exist: $url"
   fi

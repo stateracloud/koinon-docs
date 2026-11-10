@@ -39,7 +39,7 @@ koinon_src() {
   else
     for f in "$@"; do
       mkdir -p "$KOINON_SRC_DIR/$(dirname "$f")"
-      git -C "$KOINON_SRC_DIR" show "refs/tags/$ref:$f" >"$KOINON_SRC_DIR/$f" || { echo "$f does not exist at $ref" >&2; exit 2; }
+      git -C "$KOINON_SRC_DIR" show "refs/tags/$ref:$f" >"$KOINON_SRC_DIR/$f" 2>/dev/null || { echo "$f does not exist at $ref${KOINON_SRC_HINT:-}" >&2; exit 2; }
     done
   fi
   echo "fetched the Koinon sources at $ref"
@@ -60,7 +60,7 @@ koinon_main_paths() {
   repo=${KOINON_REPO:-https://github.com/stateracloud/koinon.git}
   git init -q "$tmp/koinon-main"
   git -C "$tmp/koinon-main" fetch -q --depth 1 --filter=blob:none "$repo" refs/heads/main || { echo "cannot fetch main from $repo" >&2; exit 2; }
-  git -C "$tmp/koinon-main" ls-tree -r -t FETCH_HEAD | awk -F'\t' '{ split($1, a, " "); print (a[2] == "tree" ? "d" : "f") "\t" $2 }' >"$out" || { echo "cannot list main" >&2; exit 2; }
+  git -C "$tmp/koinon-main" -c core.quotePath=false ls-tree -r -t FETCH_HEAD | awk -F'\t' '{ split($1, a, " "); print (a[2] == "tree" ? "d" : "f") "\t" $2 }' >"$out" || { echo "cannot list main" >&2; exit 2; }
 }
 
 # koinon_list_dir <dir>: the path list of <dir>. A git work tree lists tracked files and their
@@ -68,7 +68,7 @@ koinon_main_paths() {
 # listed with find, without .git and node_modules.
 koinon_list_dir() {
   if [[ -e $1/.git ]] && git -C "$1" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git -C "$1" ls-files | awk '
+    git -C "$1" -c core.quotePath=false ls-files | awk '
       { print "f\t" $0
         n = split($0, p, "/"); d = ""
         for (i = 1; i < n; i++) { d = (d == "" ? p[i] : d "/" p[i]); if (!(d in seen)) { seen[d] = 1; print "d\t" d } } }'

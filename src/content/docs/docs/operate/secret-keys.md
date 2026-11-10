@@ -545,7 +545,7 @@ changed in `before` and `after`. The first start writes every setting; a restart
 writes nothing; two replicas starting together write one event. Like the other start-up writes it is
 retried in the background every 30 seconds while the database refuses the install audit writer role.
 
-The list is fixed in the binary ([`settings.go`](https://github.com/stateracloud/koinon/blob/v0.1.0-rc.11/internal/cmd/koinonapi/settings.go) at the v0.1.0-rc.11 tag): the auth and
+The list is fixed in the binary ([`settings.go`](https://github.com/stateracloud/koinon/blob/main/internal/cmd/koinonapi/settings.go)): the auth and
 session flags, the network and gateway flags, the key and wrapping flags (`kek-*`, `openbao-*`,
 `awskms-*`, the saved-work flags), `otlp-addr`, `otlp-token-dir`, `durable`, `run-cap-sweep-interval`, `restore-hold`,
 `chart-version` (the chart passes `.Chart.Version`) and `image-version`. A flag that names a Secret, a
