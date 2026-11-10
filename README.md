@@ -50,13 +50,16 @@ page together. Run the check with bash 5 (`brew install bash` on macOS). For an 
 ## Deploy
 
 Cloudflare builds this repository from GitHub (Workers Builds) and serves `dist/` as static assets.
+A merge to `main` deploys to <https://koinon.stateracloud.com>; the address is the custom domain in
+`wrangler.jsonc`. Each pull request gets a preview address in a Cloudflare comment.
 Nothing in this repository's CI deploys. CI runs four checks: `build`, `commands`, `gitleaks`, `dco`.
 
 ## Contributing
 
 Issues go in [stateracloud/koinon](https://github.com/stateracloud/koinon/issues) with the `docs`
 label; issues are off in this repository. Sign off every commit (`git commit -s`) and use
-Conventional Commits. See [AGENTS.md](AGENTS.md) for the rules.
+Conventional Commits. Every change to `main` goes through a pull request: the four checks must pass,
+and the pull request is merged with a merge commit. See [AGENTS.md](AGENTS.md) for the rules.
 
 ## Licence
 
