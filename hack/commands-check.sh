@@ -7,11 +7,16 @@
 #
 #   1. Every e1 block of the quickstart is valid shell (bash -n), and the blocks, in order, equal
 #      test/e2e/quickstart.golden.sh (the commands the end-to-end test runs).
-#   2. Every e1 block of the backup-restore page is valid shell, and test/e2e/backup-restore.sh runs
-#      exactly those blocks (each `blk <name>` line names one).
+#   2. Every e1 block of the backup-restore page is valid shell, and the blocks, in order, equal the
+#      e1 blocks of the guide that test/e2e/backup-restore.sh runs (its GUIDE= line), command for
+#      command. test/e2e/backup-restore.sh must also run every block (each `blk <name>` line names one).
 #
 # The Koinon repository owns the commands (the end-to-end test runs its own command file). When you
 # change a command on purpose, change it there first, cut a release, and move koinon.ref to it.
+#
+# TODO(stateracloud/koinon issue 491): after the cut-over the main repository no longer keeps the
+# guide page. The source of the backup-restore commands becomes the main repository's own command
+# file, and the guide_rel line below changes to it.
 #
 # Ported from hack/docs-e1.sh and hack/docs-check.sh (steps 1 and 2b) of stateracloud/koinon at the
 # release in koinon.ref.
@@ -21,6 +26,7 @@
 #                      test/e2e/backup-restore.sh at the pinned release, for offline runs. Without it
 #                      the script fetches the tag of koinon.ref from github.com (shallow, into a
 #                      temporary directory).
+#         (it also needs docs/site/src/content/docs/guides/backup-restore.md)
 #         KOINON_REPO  the repository to fetch (default https://github.com/stateracloud/koinon.git)
 #         QUICKSTART_PAGE, BACKUP_PAGE  the page files, to check a changed copy
 
@@ -45,6 +51,7 @@ trap 'rm -rf "$tmp"' EXIT
 # The files of the Koinon repository at the pinned release.
 golden_rel=test/e2e/quickstart.golden.sh
 runner_rel=test/e2e/backup-restore.sh
+guide_rel=docs/site/src/content/docs/guides/backup-restore.md
 if [[ -n ${KOINON_SRC:-} ]]; then
   src=$KOINON_SRC
   echo "using the local Koinon sources in $src (pinned release: $ref)"
@@ -53,7 +60,7 @@ else
   repo=${KOINON_REPO:-https://github.com/stateracloud/koinon.git}
   git init -q "$src"
   git -C "$src" fetch -q --depth 1 "$repo" "refs/tags/$ref:refs/tags/$ref" || { echo "cannot fetch $ref from $repo" >&2; exit 2; }
-  for f in "$golden_rel" "$runner_rel"; do
+  for f in "$golden_rel" "$runner_rel" "$guide_rel"; do
     mkdir -p "$src/$(dirname "$f")"
     git -C "$src" show "refs/tags/$ref:$f" >"$src/$f" || { echo "$f does not exist at $ref" >&2; exit 2; }
   done
@@ -61,7 +68,8 @@ else
 fi
 golden=$src/$golden_rel
 runner=$src/$runner_rel
-for f in "$quickstart" "$backup" "$golden" "$runner"; do
+guide=$src/$guide_rel
+for f in "$quickstart" "$backup" "$golden" "$runner" "$guide"; do
   [[ -f $f ]] || { echo "missing file: $f" >&2; exit 2; }
 done
 
@@ -128,6 +136,17 @@ done
 for n in $gnames; do
   grep -qx "$n" <<<"$gused" || fail "$runner_rel at $ref does not run e1 block '$n' of the backup page"
 done
+# The commands themselves: the page and the guide at the pinned release, block by block.
+if ! script "$guide" >"$tmp/guide.expected"; then
+  fail "reading the e1 blocks of $guide_rel at $ref"
+elif ! script "$backup" >"$tmp/guide.actual"; then
+  fail "reading the e1 blocks of $backup"
+elif diff -u "$tmp/guide.expected" "$tmp/guide.actual" >"$tmp/guide.diff"; then
+  ok "the backup-restore page's e1 blocks equal those of $guide_rel at $ref"
+else
+  cat "$tmp/guide.diff" >&2
+  fail "the backup-restore e1 commands differ from $guide_rel at $ref (what the Koinon end-to-end test runs); change the command in the Koinon repository first, then move koinon.ref"
+fi
 [[ $failures -eq 0 ]] && ok "$runner_rel at $ref runs every e1 block of the backup page: $(tr '\n' ' ' <<<"$gused")"
 
 if [[ $failures -ne 0 ]]; then

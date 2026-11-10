@@ -40,8 +40,8 @@ The quickstart and the backup-restore page show shell commands in fenced blocks 
 them. `hack/commands-check.sh` fetches the Koinon release named in `koinon.ref` and checks that:
 
 - the quickstart's blocks are valid shell and equal `test/e2e/quickstart.golden.sh`;
-- the backup-restore page's blocks are valid shell and are exactly the blocks that
-  `test/e2e/backup-restore.sh` runs.
+- the backup-restore page's blocks are valid shell, equal command for command the blocks of the guide
+  that `test/e2e/backup-restore.sh` runs, and are exactly the blocks that script runs by name.
 
 To change a command, change it in the Koinon repository, cut a release, then move `koinon.ref` and the
 page together. Run the check with bash 5 (`brew install bash` on macOS). For an offline run, set

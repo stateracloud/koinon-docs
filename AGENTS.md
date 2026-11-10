@@ -21,8 +21,9 @@ tracker are in [stateracloud/koinon](https://github.com/stateracloud/koinon).
   does; do not describe what main does.
 - **The `e1` block rule.** A fenced block that starts with `sh e1=<name>` on the quickstart and
   backup-restore pages is a command the Koinon repository tests. Never edit one here. Change the
-  command in `stateracloud/koinon` (its `test/e2e/quickstart.golden.sh` and `test/e2e/backup-restore.sh`),
-  release, then move `koinon.ref` and the page. `hack/commands-check.sh` compares them.
+  command in `stateracloud/koinon` (its `test/e2e/quickstart.golden.sh` and the backup-restore guide
+  that `test/e2e/backup-restore.sh` runs), release, then move `koinon.ref` and the page.
+  `hack/commands-check.sh` compares the commands, not only the block names.
 - **Dependencies are at least 3 days old** before they enter the tree (ADR 0079 of the Koinon
   repository; `pnpm-workspace.yaml` enforces it for direct and transitive packages). Pin every
   version exactly, no caret. Starlight is pre-1.0: bump it on its own, with a build.
