@@ -363,6 +363,8 @@ the images straight into kind, and its browser suite goes through the Vite dev s
 
 The commands in the blocks marked `e1` are the ones Koinon's end-to-end test runs, in a kind cluster,
 for the release named in the label at the top of every page. This site checks on every change that
-its pages show the same commands as that release. Three things differ in the test: `values.yaml`
+its pages show the same commands as that release. The source of the commands is the file
+[`test/e2e/commands/quickstart.e1`](https://github.com/stateracloud/koinon/blob/main/test/e2e/commands/quickstart.e1)
+in the Koinon repository. Three things differ in the test: `values.yaml`
 holds the kind values with a fake GitHub instead of github.com, the model provider is a fake model
 server instead of OpenRouter, and its `kubectl` and `helm` add the kind context.
