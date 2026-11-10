@@ -25,8 +25,12 @@ Pull requests of the main repository (`stateracloud/koinon`) whose page changes 
 - #488: prerequisites page (Agent Sandbox v1.0.10 and its SHA-256).
 - #493: restore-hold in the backup-restore, metrics and secret-keys pages (`keys verify`,
   `koinon_restore_hold`, the new `hold`, `verify-keys` and `release` blocks).
+- #494: backup-restore, metrics and upgrading pages (the install mark: its Secret, backup, and the
+  unmarked-objects gauges).
 - #496: metrics page (`koinon_reconciler_openshell_gateway_id_mismatch`) and sandbox-break-glass page
   (relabelling a sandbox namespace).
 - #497: quickstart and backup-restore pages (the commands now come from `test/e2e/commands/*.e1`).
+
+Carried up to main commit ac1b22163.
 
 The merge pull request deletes this file.
