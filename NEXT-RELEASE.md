@@ -13,11 +13,13 @@ files `test/e2e/commands/*.e1`, and `hack/pages-check.sh` runs the page tests of
 `KOINON_PAGES_DIR`. So the `commands` check fails until `koinon.ref` moves: the tag in `koinon.ref`
 (v0.1.0-rc.11) has neither the command files nor `internal/declarative/pages_test.go`.
 
-The release pull request changes only `koinon.ref`, and deletes this file. It needs a tag that has both
-the command files and `pages_test.go`. The workflow file needs no change.
+The release pull request changes only `koinon.ref`, and deletes this file. It needs a tag that has the
+command files, `pages_test.go`, and `hack/docs-e1.sh` with file mode (`E1_FILE`). The workflow file needs no change.
 
-Links to the Koinon repository on these pages use `main`, because the paths they name are not in
-the old tag (for example `docs/dev/prices.md`).
+Two links on these pages point at `main`, because the paths they name are not in the old tag:
+`docs/dev/prices.md` (default-prices page) and `internal/cmd/koinonapi/settings.go` (secret-keys
+page). The link `blob/main/docs/dev/prices.md` fails the link check until the main repository's pull
+request stateracloud/koinon#506 is merged. When `koinon.ref` moves, change both links to the new tag.
 
 Pull requests of the main repository (`stateracloud/koinon`) whose page changes this branch carries:
 

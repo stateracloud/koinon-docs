@@ -42,7 +42,9 @@ The quickstart and the backup-restore page show shell commands in fenced blocks 
 `sh e1=<name>`. The Koinon repository tests exactly these commands in its end-to-end test, so it owns
 them. `hack/commands-check.sh` fetches the Koinon release named in `koinon.ref` and checks that:
 
-- the quickstart's blocks are valid shell and equal the blocks of `test/e2e/commands/quickstart.e1`;
+- the quickstart's blocks are valid shell and equal the blocks of `test/e2e/commands/quickstart.e1`
+  (the command files are read by `hack/docs-e1.sh` of the release, in file mode with `E1_FILE`, so
+  the release needs that script too);
 - the backup-restore page's blocks are valid shell and equal the blocks of
   `test/e2e/commands/backup-restore.e1`.
 
