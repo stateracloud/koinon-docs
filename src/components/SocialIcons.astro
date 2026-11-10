@@ -1,0 +1,21 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+//
+// Top bar: a "Docs" link, then Starlight's social icons (GitHub). Search and the theme switch
+// come from Starlight's header.
+import Default from '@astrojs/starlight/components/SocialIcons.astro'
+---
+
+<a class="kn-docs-link" href="/docs/">Docs</a>
+<Default {...Astro.props}><slot /></Default>
+
+<style>
+  .kn-docs-link {
+    color: var(--sl-color-text);
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .kn-docs-link:hover {
+    color: var(--sl-color-text-accent);
+  }
+</style>

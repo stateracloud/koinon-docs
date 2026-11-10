@@ -1,0 +1,41 @@
+---
+title: Documentation home
+description: Koinon is an open source org-and-work layer for AI agents on Kubernetes.
+template: splash
+hero:
+  title: Koinon
+  tagline: Koinon is an open source org-and-work layer for AI agents on Kubernetes.
+  image:
+    alt: The Koinon K
+    dark: ../../assets/koinon-mark-dark.svg
+    light: ../../assets/koinon-mark-light.svg
+  actions:
+    - text: Read the docs
+      link: /docs/
+      icon: right-arrow
+    - text: Quickstart
+      link: /docs/start/quickstart/
+      variant: minimal
+---
+
+{/* SPDX-License-Identifier: Apache-2.0 */}
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components'
+
+<CardGrid>
+  <LinkCard
+    title="What is Koinon"
+    description="What it does and how these pages are organised."
+    href="/docs/"
+  />
+  <LinkCard
+    title="Install with Helm"
+    description="From helm install to an approved pull request in about 15 minutes."
+    href="/docs/start/quickstart/#2-install"
+  />
+  <LinkCard
+    title="Run your first agent"
+    description="Create the repo-helper agent, give it a task and approve what it proposes."
+    href="/docs/start/quickstart/#6-create-the-repo-helper-agent"
+  />
+</CardGrid>

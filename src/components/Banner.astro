@@ -1,0 +1,30 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+//
+// The pre-release banner (switch: PRE_RELEASE in site.config.mjs), then Starlight's own banner,
+// which a page can still set with the `banner` front matter field.
+import Default from '@astrojs/starlight/components/Banner.astro'
+import { KOINON_VERSION, PRE_RELEASE } from '../../site.config.mjs'
+---
+
+{
+  PRE_RELEASE && (
+    <div class="kn-prerelease" role="note" data-pagefind-ignore>
+      Pre-release documentation for Koinon {KOINON_VERSION}
+    </div>
+  )
+}
+<Default {...Astro.props}><slot /></Default>
+
+<style>
+  .kn-prerelease {
+    padding: var(--sl-nav-pad-y) var(--sl-nav-pad-x);
+    background-color: var(--kn-warning-bg);
+    color: var(--kn-warning);
+    border-bottom: 1px solid var(--kn-warning-border);
+    text-align: center;
+    font-size: var(--sl-text-sm);
+    font-weight: 500;
+    line-height: var(--sl-line-height-headings);
+  }
+</style>

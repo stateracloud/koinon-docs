@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+node_modules/
+dist/
+.astro/
+.wrangler/
+.env
+.env.*
+*.log
+.DS_Store

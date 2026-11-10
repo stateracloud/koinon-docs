@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dependency cooldown (same rules as the main repo, ADR 0079): no version younger than 3 days
+# (4320 minutes), direct or transitive, and strict, so an install fails rather than falling back
+# to a younger version.
+minimumReleaseAge: 4320
+minimumReleaseAgeStrict: true
+# Refuse a release whose publisher trust dropped (trusted publisher -> provenance -> nothing).
+trustPolicy: no-downgrade
+# Entries that the lockfile no longer resolves are removed on the next install.
+minimumReleaseAgeExcludePrune: true
+# Security fast path only: EXACT versions, never a bare name or a pattern, each with a comment
+# naming the advisory and the date, added in the same PR as the diff review.
+minimumReleaseAgeExclude: []
+# Install scripts: only these two packages may run them (esbuild: the build; workerd: wrangler).
+allowBuilds:
+  esbuild: true
+  workerd: true

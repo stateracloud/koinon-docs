@@ -1,0 +1,204 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Koinon theme for Starlight. Source: the Koinon design system ("1E Pastel": dark is primary,
+ * light is tinted daylight). Token names in --kn-* are the design system's names; the --sl-*
+ * block at the end maps them onto Starlight's variables. Purple is for actions and links only.
+ * Dark is Starlight's default (:root); light is :root[data-theme='light']. Starlight's switch
+ * (Dark, Light, Auto) sets data-theme, and Auto follows the visitor's system setting.
+ */
+
+/* Fonts: Geist, self-hosted through fontsource (SIL OFL 1.1). No request leaves the site. */
+@import '@fontsource/geist-sans/latin-400.css';
+@import '@fontsource/geist-sans/latin-500.css';
+@import '@fontsource/geist-sans/latin-600.css';
+@import '@fontsource/geist-mono/latin-400.css';
+@import '@fontsource/geist-mono/latin-500.css';
+
+:root {
+  /* Dark */
+  --kn-background: #1c1b29;
+  --kn-card: #302f41;
+  --kn-raised: #414053;
+  --kn-overlay: #555468;
+  --kn-foreground: #eaeefe;
+  --kn-muted: #393944;
+  --kn-muted-foreground: #acb1cb;
+  --kn-secondary: #44444f;
+  --kn-primary: #cba6f5;
+  --kn-primary-foreground: #1c1b29;
+  --kn-link: #d2b3f7;
+  --kn-ring: #d2b3f7;
+  --kn-border: #9090a4;
+  --kn-divider: #616174;
+  --kn-purple-200: #494153;
+  --kn-purple-800: #d9b9ff;
+  --kn-success: #a7dca1;
+  --kn-success-bg: #3d493b;
+  --kn-success-border: #7d9c7a;
+  --kn-warning: #f7c68c;
+  --kn-warning-bg: #4e4336;
+  --kn-warning-border: #a98d6c;
+  --kn-danger: #fa9494;
+  --kn-danger-bg: #563e3d;
+  --kn-danger-border: #bd807f;
+  --kn-info: #90b7f8;
+  --kn-info-bg: #3c4555;
+  --kn-info-border: #7c93ba;
+  --kn-code-bg: #1c1b29;
+  --kn-shadow-md: inset 0 1px 0 #fff0e614, 0 8px 24px #0000005c;
+
+  /* Starlight: greys (white is the strongest text, black is the page) */
+  --sl-color-white: var(--kn-foreground);
+  --sl-color-gray-1: var(--kn-foreground);
+  --sl-color-gray-2: var(--kn-muted-foreground);
+  --sl-color-gray-3: var(--kn-border);
+  --sl-color-gray-4: var(--kn-divider);
+  --sl-color-gray-5: var(--kn-raised);
+  --sl-color-gray-6: var(--kn-card);
+  --sl-color-black: var(--kn-background);
+
+  /* Starlight: accent (purple: actions and links) */
+  --sl-color-accent-low: var(--kn-purple-200);
+  --sl-color-accent: var(--kn-primary);
+  --sl-color-accent-high: var(--kn-link);
+
+  /* Starlight: status colours. The tip aside would be purple; purple is not a status colour here,
+     so the purple slot carries the success green. */
+  --sl-color-blue-low: var(--kn-info-bg);
+  --sl-color-blue: var(--kn-info-border);
+  --sl-color-blue-high: var(--kn-info);
+  --sl-color-green-low: var(--kn-success-bg);
+  --sl-color-green: var(--kn-success-border);
+  --sl-color-green-high: var(--kn-success);
+  --sl-color-purple-low: var(--kn-success-bg);
+  --sl-color-purple: var(--kn-success-border);
+  --sl-color-purple-high: var(--kn-success);
+  --sl-color-orange-low: var(--kn-warning-bg);
+  --sl-color-orange: var(--kn-warning-border);
+  --sl-color-orange-high: var(--kn-warning);
+  --sl-color-red-low: var(--kn-danger-bg);
+  --sl-color-red: var(--kn-danger-border);
+  --sl-color-red-high: var(--kn-danger);
+
+  /* Starlight: roles */
+  --sl-color-text: var(--kn-foreground);
+  --sl-color-text-accent: var(--kn-link);
+  --sl-color-text-invert: var(--kn-primary-foreground);
+  --sl-color-bg: var(--kn-background);
+  --sl-color-bg-nav: var(--kn-background);
+  --sl-color-bg-sidebar: var(--kn-background);
+  --sl-color-bg-inline-code: var(--kn-raised);
+  --sl-color-bg-accent: var(--kn-primary);
+  --sl-color-hairline-light: var(--kn-divider);
+  --sl-color-hairline: var(--kn-raised);
+  --sl-color-hairline-shade: var(--kn-background);
+  --sl-color-backdrop-overlay: #1c1b29a8;
+  --sl-shadow-sm: inset 0 1px 0 #fff0e60f;
+  --sl-shadow-md: var(--kn-shadow-md);
+  --sl-shadow-lg: var(--kn-shadow-md);
+
+  /* Fonts */
+  --sl-font: 'Geist Sans', system-ui, sans-serif;
+  --sl-font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+:root[data-theme='light'] {
+  --kn-background: #ddddf3;
+  --kn-card: #f5f6ff;
+  --kn-raised: #fdfdff;
+  --kn-overlay: #ffffff;
+  --kn-foreground: #24233c;
+  --kn-muted: #eeeffc;
+  --kn-muted-foreground: #555571;
+  --kn-secondary: #e5e5f2;
+  --kn-primary: #6e3ead;
+  --kn-primary-foreground: #ffffff;
+  --kn-link: #65379f;
+  --kn-ring: #65379f;
+  --kn-border: #727286;
+  --kn-divider: #bbbbd1;
+  --kn-purple-200: #eae1fc;
+  --kn-purple-800: #5d2b99;
+  --kn-success: #306f35;
+  --kn-success-bg: #ddebdd;
+  --kn-success-border: #558156;
+  --kn-warning: #8a5516;
+  --kn-warning-bg: #f4e3d1;
+  --kn-warning-border: #9c6829;
+  --kn-danger: #b13530;
+  --kn-danger-bg: #fddeda;
+  --kn-danger-border: #b0554c;
+  --kn-info: #2763a8;
+  --kn-info-bg: #dae8f9;
+  --kn-info-border: #4c76ac;
+  --kn-code-bg: #ededfc;
+  --kn-shadow-md: 0 2px 4px #24233c1f, 0 8px 24px #24233c1f;
+
+  /* Starlight, light: white is the strongest text and black is the page, as in Starlight itself */
+  --sl-color-gray-2: var(--kn-muted-foreground);
+  --sl-color-gray-3: var(--kn-muted-foreground);
+  --sl-color-gray-4: var(--kn-border);
+  --sl-color-gray-5: var(--kn-divider);
+  --sl-color-gray-6: var(--kn-secondary);
+  --sl-color-gray-7: var(--kn-card);
+  --sl-color-bg-nav: var(--kn-card);
+  --sl-color-bg-sidebar: var(--kn-background);
+  --sl-color-bg-inline-code: var(--kn-secondary);
+  --sl-color-bg-accent: var(--kn-primary);
+  --sl-color-text-accent: var(--kn-link);
+  --sl-color-text-invert: var(--kn-primary-foreground);
+  --sl-color-hairline-light: var(--kn-divider);
+  --sl-color-hairline: var(--kn-divider);
+  --sl-color-hairline-shade: var(--kn-divider);
+  --sl-color-backdrop-overlay: #24233c8a;
+  --sl-shadow-sm: 0 1px 2px #24233c1a;
+  --sl-shadow-md: var(--kn-shadow-md);
+  --sl-shadow-lg: var(--kn-shadow-md);
+}
+
+/* Type: weights 400 (text), 500 (labels, links), 600 (headings). Never above 600. */
+:root {
+  font-weight: 400;
+}
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6),
+.hero h1,
+h1#_top {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+h1#_top,
+.hero h1 {
+  letter-spacing: -0.04em;
+}
+strong,
+b,
+th {
+  font-weight: 600;
+}
+.sl-markdown-content a:not(:where(.not-content *)) {
+  font-weight: 500;
+}
+code,
+kbd,
+pre {
+  font-variant-ligatures: none;
+}
+
+/* Code blocks use the design system's code ground and edge. */
+:root {
+  --ec-brdCol: var(--kn-border);
+}
+.expressive-code {
+  --ec-codeBg: var(--kn-code-bg);
+  --ec-brdCol: var(--kn-divider);
+}
+
+/* Focus ring */
+:focus-visible {
+  outline-color: var(--kn-ring);
+}
+
+/* Link hover: the design system has no hover token; the closest step is purple-800. */
+.sl-markdown-content a:not(:where(.not-content *)):hover {
+  color: var(--kn-purple-800);
+}

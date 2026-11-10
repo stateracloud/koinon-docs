@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Cloudflare Worker "koinon-docs": static assets only. There is no `main` entry and no Worker code;
+// Cloudflare serves the Astro build output. Cloudflare builds from GitHub (Workers Builds), so no
+// deploy step lives in this repository's CI. Keys checked against
+// https://developers.cloudflare.com/workers/wrangler/configuration/#assets on 2026-11-10.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "koinon-docs",
+  "compatibility_date": "2026-11-10",
+  "assets": {
+    "directory": "./dist",
+    // A request that matches no file gets the nearest 404.html with status 404.
+    "not_found_handling": "404-page"
+  }
+}
