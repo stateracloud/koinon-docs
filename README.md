@@ -5,7 +5,7 @@ The source of the Koinon documentation site, <https://koinon.stateracloud.com>. 
 [Astro Starlight](https://starlight.astro.build) site with the Koinon theme. The code, the
 decisions and the issue tracker are in [stateracloud/koinon](https://github.com/stateracloud/koinon).
 
-The pages describe one Koinon release, named in `koinon.ref` (today `v0.1.0-rc.11`). While the
+The pages describe one Koinon release, named in `koinon.ref` (today `v0.1.0-rc.13`). While the
 site is pre-release, every page carries a banner and a `noindex` tag, and `robots.txt` disallows all
 (`PRE_RELEASE` in `site.config.mjs`).
 

@@ -10,7 +10,7 @@ in [ADR 0056](https://github.com/stateracloud/koinon/blob/main/docs/adr/0056-mod
 
 The built-in price list ships inside the release, in the `koinon-api` binary. An operator cannot edit it.
 The steps that change it are in the Koinon repository
-([prices guide](https://github.com/stateracloud/koinon/blob/v0.1.0-rc.11/docs/ops/prices.md)).
+([prices guide](https://github.com/stateracloud/koinon/blob/v0.1.0-rc.13/docs/ops/prices.md)).
 Each ledger entry cites the price version it used (`default@<version>#<id>`).
 
 Some entries list hosts they do not apply to. The built-in `ollama-local` entry does not apply to `ollama.com`,

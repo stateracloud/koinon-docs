@@ -6,27 +6,22 @@
 # the blocks on the pages equal the ones in stateracloud/koinon at the release in `koinon.ref`:
 #
 #   1. Every e1 block of the quickstart is valid shell (bash -n), and the blocks, in order, equal
-#      test/e2e/quickstart.golden.sh (the commands the end-to-end test runs).
+#      the blocks of test/e2e/commands/quickstart.e1 (the commands the end-to-end test runs).
 #   2. Every e1 block of the backup-restore page is valid shell, and the blocks, in order, equal the
-#      e1 blocks of the guide that test/e2e/backup-restore.sh runs (its GUIDE= line), command for
-#      command. test/e2e/backup-restore.sh must also run every block (each `blk <name>` line names one).
+#      blocks of test/e2e/commands/backup-restore.e1, command for command. test/e2e/backup-restore.sh
+#      must also run every block (each `blk <name>` line names one).
 #
 # The Koinon repository owns the commands (the end-to-end test runs its own command file). When you
 # change a command on purpose, change it there first, cut a release, and move koinon.ref to it.
-#
-# TODO(stateracloud/koinon issue 491): after the cut-over the main repository no longer keeps the
-# guide page. The source of the backup-restore commands becomes the main repository's own command
-# file, and the guide_rel line below changes to it.
 #
 # Ported from hack/docs-e1.sh and hack/docs-check.sh (steps 1 and 2b) of stateracloud/koinon at the
 # release in koinon.ref.
 #
 # Usage:  hack/commands-check.sh
-# Env:    KOINON_SRC   a local Koinon checkout or export that holds test/e2e/quickstart.golden.sh and
-#                      test/e2e/backup-restore.sh at the pinned release, for offline runs. Without it
+# Env:    KOINON_SRC   a local Koinon checkout or export that holds test/e2e/commands/*.e1,
+#                      test/e2e/backup-restore.sh and hack/docs-e1.sh at the pinned release, for offline runs. Without it
 #                      the script fetches the tag of koinon.ref from github.com (shallow, into a
 #                      temporary directory).
-#         (it also needs docs/site/src/content/docs/guides/backup-restore.md)
 #         KOINON_REPO  the repository to fetch (default https://github.com/stateracloud/koinon.git)
 #         QUICKSTART_PAGE, BACKUP_PAGE  the page files, to check a changed copy
 
@@ -50,15 +45,17 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/commands-check.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 
 # The files of the Koinon repository at the pinned release.
-golden_rel=test/e2e/quickstart.golden.sh
+golden_rel=test/e2e/commands/quickstart.e1
 runner_rel=test/e2e/backup-restore.sh
-guide_rel=docs/site/src/content/docs/guides/backup-restore.md
-koinon_src "$tmp" "$golden_rel" "$runner_rel" "$guide_rel"
+guide_rel=test/e2e/commands/backup-restore.e1
+e1sh_rel=hack/docs-e1.sh
+koinon_src "$tmp" "$golden_rel" "$runner_rel" "$guide_rel" "$e1sh_rel"
 src=$KOINON_SRC_DIR
 golden=$src/$golden_rel
 runner=$src/$runner_rel
 guide=$src/$guide_rel
-for f in "$quickstart" "$backup" "$golden" "$runner" "$guide"; do
+e1sh=$src/$e1sh_rel
+for f in "$quickstart" "$backup" "$golden" "$runner" "$guide" "$e1sh"; do
   [[ -f $f ]] || { echo "missing file: $f" >&2; exit 2; }
 done
 
@@ -99,9 +96,9 @@ for n in $qnames; do
   show "$quickstart" "$n" >"$tmp/$n.sh" || { fail "e1 block $n is empty"; continue; }
   bash -n "$tmp/$n.sh" || fail "e1 block $n is not valid shell"
 done
-# The golden file starts with a four-line header; the rest is the script. Plain files, not process
-# substitution: sandboxes (macOS Seatbelt) deny opening /dev/fd/N.
-tail -n +5 "$golden" >"$tmp/golden.expected"
+# The command file's expected script, from the release's own hack/docs-e1.sh (the form both sides
+# compare). Plain files, not process substitution: sandboxes (macOS Seatbelt) deny opening /dev/fd/N.
+E1_FILE=$golden bash "$e1sh" script >"$tmp/golden.expected" || fail "reading the e1 blocks of $golden_rel at $ref"
 if ! script "$quickstart" >"$tmp/golden.actual"; then
   fail "reading the e1 blocks of $quickstart"
 elif diff -u "$tmp/golden.expected" "$tmp/golden.actual" >"$tmp/golden.diff"; then
@@ -126,7 +123,7 @@ for n in $gnames; do
   grep -qx "$n" <<<"$gused" || fail "$runner_rel at $ref does not run e1 block '$n' of the backup page"
 done
 # The commands themselves: the page and the guide at the pinned release, block by block.
-if ! script "$guide" >"$tmp/guide.expected"; then
+if ! E1_FILE=$guide bash "$e1sh" script >"$tmp/guide.expected"; then
   fail "reading the e1 blocks of $guide_rel at $ref"
 elif ! script "$backup" >"$tmp/guide.actual"; then
   fail "reading the e1 blocks of $backup"
