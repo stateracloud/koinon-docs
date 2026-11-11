@@ -29,6 +29,8 @@ Pull requests of the main repository (`stateracloud/koinon`) whose page changes 
   `koinon_restore_hold`, the new `hold`, `verify-keys` and `release` blocks).
 - #494: backup-restore, metrics and upgrading pages (the install mark: its Secret, backup, and the
   unmarked-objects gauges).
+- #570: backup-restore, metrics and upgrading pages (`koinon-reconciler unmarked list`, the reasons table,
+  `koinon_openshell_unmarked_objects_waiting_for_agent`).
 - #496: metrics page (`koinon_reconciler_openshell_gateway_id_mismatch`) and sandbox-break-glass page
   (relabelling a sandbox namespace).
 - #497: quickstart and backup-restore pages (the commands now come from `test/e2e/commands/*.e1`).

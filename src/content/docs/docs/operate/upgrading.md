@@ -107,6 +107,9 @@ second install on the gateway. Do not run a restored copy on the same gateway un
 ([Back up and restore](/docs/operate/backup-restore/#two-installs-on-one-openshell-gateway)). Runs that hold an agent
 for a long time delay it; a higher `reconciler.maxRecreatesPerPass` shortens it.
 
+To see which objects are not claimed yet, and why, run `koinon-reconciler unmarked list`
+([Back up and restore](/docs/operate/backup-restore/#find-the-unmarked-objects)).
+
 ## Upgrading to the install audit chain (ADR 0100)
 
 The release that adds the install audit chain (migration 00066) needs a `NOLOGIN` group role,
