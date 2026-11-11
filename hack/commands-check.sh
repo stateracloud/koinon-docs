@@ -3,26 +3,25 @@
 #
 # The commands on the quickstart and backup-restore pages are the commands the Koinon repository
 # tests. A fenced block whose info string is `sh e1=<name>` is one of them. This script checks that
-# the blocks on each page equal the blocks of the command file of the Koinon release in `koinon.ref`:
+# the blocks on the pages equal the ones in stateracloud/koinon at the release in `koinon.ref`:
 #
-#   quickstart page       test/e2e/commands/quickstart.e1
-#   backup-restore page   test/e2e/commands/backup-restore.e1
+#   1. Every e1 block of the quickstart is valid shell (bash -n), and the blocks, in order, equal
+#      the blocks of test/e2e/commands/quickstart.e1 (the commands the end-to-end test runs).
+#   2. Every e1 block of the backup-restore page is valid shell, and the blocks, in order, equal the
+#      blocks of test/e2e/commands/backup-restore.e1, command for command. test/e2e/backup-restore.sh
+#      must also run every block (each `blk <name>` line names one).
 #
-# A command file has a comment header, then blocks that each start with a line `# e1=<name>`. The
-# file side is read by hack/docs-e1.sh of the release itself (`E1_FILE=<file> docs-e1.sh script`).
-# For each page the check requires: the same
-# block names in the same order, byte-equal commands (empty lines are not part of a block, as in
-# the reader), at least one block on each side, and valid shell in each page block (bash -n). A block
-# that is on one side only is a failure.
+# The Koinon repository owns the commands (the end-to-end test runs its own command file). When you
+# change a command on purpose, change it there first, cut a release, and move koinon.ref to it.
 #
-# The Koinon repository owns the commands. When you change a command on purpose, change it there
-# first, cut a release, and move koinon.ref to it. This branch needs a release that has the command
-# files; earlier releases (v0.1.0-rc.11 and before) keep a golden script and the guide page instead.
+# Ported from hack/docs-e1.sh and hack/docs-check.sh (steps 1 and 2b) of stateracloud/koinon at the
+# release in koinon.ref.
 #
 # Usage:  hack/commands-check.sh
-# Env:    KOINON_SRC   a local Koinon checkout or export at the pinned release, for offline runs.
-#                      Without it the script fetches the tag of koinon.ref from github.com (shallow,
-#                      into a temporary directory).
+# Env:    KOINON_SRC   a local Koinon checkout or export that holds test/e2e/commands/*.e1,
+#                      test/e2e/backup-restore.sh and hack/docs-e1.sh at the pinned release, for offline runs. Without it
+#                      the script fetches the tag of koinon.ref from github.com (shallow, into a
+#                      temporary directory).
 #         KOINON_REPO  the repository to fetch (default https://github.com/stateracloud/koinon.git)
 #         QUICKSTART_PAGE, BACKUP_PAGE  the page files, to check a changed copy
 
@@ -45,80 +44,73 @@ ok() { echo "ok: $*"; }
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/commands-check.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 
-# The command files of the Koinon repository at the pinned release, and the reader of those files,
-# hack/docs-e1.sh. The file side is read by that script and by no parser of ours: the end-to-end test
-# and this check then read the same bytes, and a change of the format at a later tag cannot make the
-# two disagree.
-qfile_rel=test/e2e/commands/quickstart.e1
-bfile_rel=test/e2e/commands/backup-restore.e1
-reader_rel=hack/docs-e1.sh
-KOINON_SRC_HINT="; this site needs a Koinon release that has the command files $qfile_rel and $bfile_rel and their reader $reader_rel with file mode (E1_FILE) (v0.1.0-rc.11 and earlier do not): move koinon.ref to a release that has them"
-koinon_src "$tmp" "$qfile_rel" "$bfile_rel" "$reader_rel"
+# The files of the Koinon repository at the pinned release.
+golden_rel=test/e2e/commands/quickstart.e1
+runner_rel=test/e2e/backup-restore.sh
+guide_rel=test/e2e/commands/backup-restore.e1
+e1sh_rel=hack/docs-e1.sh
+koinon_src "$tmp" "$golden_rel" "$runner_rel" "$guide_rel" "$e1sh_rel"
 src=$KOINON_SRC_DIR
-for f in "$quickstart" "$backup"; do
+golden=$src/$golden_rel
+runner=$src/$runner_rel
+guide=$src/$guide_rel
+e1sh=$src/$e1sh_rel
+for f in "$quickstart" "$backup" "$golden" "$runner" "$guide" "$e1sh"; do
   [[ -f $f ]] || { echo "missing file: $f" >&2; exit 2; }
 done
-for f in "$qfile_rel" "$bfile_rel" "$reader_rel"; do
-  [[ -f $src/$f ]] || { echo "$f does not exist in the Koinon sources at $ref$KOINON_SRC_HINT" >&2; exit 2; }
+
+# The page side is read by the release's own reader (hack/docs-e1.sh with E1_DOC set), so the page and
+# the command file are read by one set of rules (a tab-leading <<-EOF body included).
+e1doc() { E1_DOC=$1 bash "$e1sh" "${@:2}"; }
+names() { e1doc "$1" names; }
+show() { e1doc "$1" show "$2"; }
+script() { e1doc "$1" script; }
+
+# 1. The quickstart's e1 blocks.
+qnames=$(names "$quickstart") || { fail "reading the e1 blocks of $quickstart"; qnames=""; }
+[[ -n $qnames ]] || fail "$quickstart has no e1 blocks"
+for n in $qnames; do
+  show "$quickstart" "$n" >"$tmp/$n.sh" || { fail "e1 block $n is empty"; continue; }
+  bash -n "$tmp/$n.sh" || fail "e1 block $n is not valid shell"
 done
-reader=$src/$reader_rel
-grep -q 'E1_FILE' "$reader" || { echo "$reader_rel at $ref has no file mode (E1_FILE)$KOINON_SRC_HINT" >&2; exit 2; }
+# The command file's expected script, from the release's own hack/docs-e1.sh (the form both sides
+# compare). Plain files, not process substitution: sandboxes (macOS Seatbelt) deny opening /dev/fd/N.
+E1_FILE=$golden bash "$e1sh" script >"$tmp/golden.expected" || fail "reading the e1 blocks of $golden_rel at $ref"
+if ! script "$quickstart" >"$tmp/golden.actual"; then
+  fail "reading the e1 blocks of $quickstart"
+elif diff -u "$tmp/golden.expected" "$tmp/golden.actual" >"$tmp/golden.diff"; then
+  ok "the quickstart's e1 blocks equal $golden_rel at $ref"
+else
+  cat "$tmp/golden.diff" >&2
+  fail "the quickstart's e1 commands differ from $golden_rel at $ref (what the Koinon end-to-end test runs); change the command in the Koinon repository first, then move koinon.ref"
+fi
 
-# The page side: this repository's own extraction of the `sh e1=<name>` fences. It prints the form
-# of `docs-e1.sh script`: a line "# e1=<name>", then the block's commands (an empty line is dropped).
-page_script() { # page_script <page>
-  awk '
-    /^```/ {
-      if (name != "") { name = ""; next }
-      if (match($0, /^```(sh|bash) +e1=[a-z0-9-]+/)) {
-        s = substr($0, RSTART, RLENGTH); sub(/^.*e1=/, "", s); name = s
-        if (name in seen) { print "duplicate e1 block: " name > "/dev/stderr"; exit 2 }
-        seen[name] = 1; print "# e1=" name; next
-      }
-      next
-    }
-    name != "" && length($0) > 0 { print }
-  ' "$1"
-}
-script_names() { sed -n 's/^# e1=//p' "$1"; }
-
-# compare <label> <page> <command file relative path>
-compare() {
-  local label=$1 page=$2 rel=$3 key n
-  key=$(basename "$rel" .e1)
-  page_script "$page" >"$tmp/$key.page" || { fail "reading the e1 blocks of $page"; return; }
-  # The reader's own message is shown when it refuses the file (exit code 1 or 2).
-  E1_FILE=$src/$rel "$BASH" "$reader" script >"$tmp/$key.file" 2>"$tmp/$key.err" || {
-    cat "$tmp/$key.err" >&2
-    fail "$reader_rel at $ref cannot read $rel"
-    return
-  }
-  [[ -s $tmp/$key.page ]] || { fail "the $label page has no e1 blocks"; return; }
-  [[ -s $tmp/$key.file ]] || { fail "$rel at $ref has no e1 blocks"; return; }
-  # Valid shell, block by block, and no empty block on the page.
-  for n in $(script_names "$tmp/$key.page"); do
-    awk -v n="# e1=$n" '$0 == n { on = 1; next } /^# e1=/ && on { exit } on' "$tmp/$key.page" >"$tmp/$key-$n.sh"
-    [[ -s $tmp/$key-$n.sh ]] || { fail "e1 block $n of the $label page is empty"; continue; }
-    bash -n "$tmp/$key-$n.sh" || fail "e1 block $n of the $label page is not valid shell"
-  done
-  # A block on one side only gets its own message; the diff then shows the rest.
-  local missing=0
-  for n in $(script_names "$tmp/$key.file"); do
-    script_names "$tmp/$key.page" | grep -qx -- "$n" || { fail "$rel at $ref has the e1 block '$n', which the $label page does not have"; missing=1; }
-  done
-  for n in $(script_names "$tmp/$key.page"); do
-    script_names "$tmp/$key.file" | grep -qx -- "$n" || { fail "the $label page has the e1 block '$n', which $rel at $ref does not have"; missing=1; }
-  done
-  if diff -u "$tmp/$key.file" "$tmp/$key.page" >"$tmp/$key.diff"; then
-    ok "the $label page's e1 blocks equal $rel at $ref ($(script_names "$tmp/$key.page" | wc -l | tr -d ' ') blocks)"
-  else
-    cat "$tmp/$key.diff" >&2
-    [[ $missing -eq 1 ]] || fail "the $label page's e1 commands differ from $rel at $ref (what the Koinon end-to-end test runs); change the command in the Koinon repository first, then move koinon.ref"
-  fi
-}
-
-compare quickstart "$quickstart" "$qfile_rel"
-compare backup-restore "$backup" "$bfile_rel"
+# 2. The backup-restore page's e1 blocks, and what test/e2e/backup-restore.sh runs.
+gnames=$(names "$backup") || { fail "reading the e1 blocks of $backup"; gnames=""; }
+[[ -n $gnames ]] || fail "$backup has no e1 blocks"
+for n in $gnames; do
+  show "$backup" "$n" >"$tmp/guide-$n.sh" || { fail "e1 block $n of the backup page is empty"; continue; }
+  bash -n "$tmp/guide-$n.sh" || fail "e1 block $n of the backup page is not valid shell"
+done
+gused=$(grep -v '^[[:space:]]*#' "$runner" | grep -oE '\bblk [a-z0-9-]+' | awk '{print $NF}' | sort -u)
+for n in $gused; do
+  grep -qx "$n" <<<"$gnames" || fail "$runner_rel at $ref runs e1 block '$n', which the backup page does not have"
+done
+for n in $gnames; do
+  grep -qx "$n" <<<"$gused" || fail "$runner_rel at $ref does not run e1 block '$n' of the backup page"
+done
+# The commands themselves: the page and the guide at the pinned release, block by block.
+if ! E1_FILE=$guide bash "$e1sh" script >"$tmp/guide.expected"; then
+  fail "reading the e1 blocks of $guide_rel at $ref"
+elif ! script "$backup" >"$tmp/guide.actual"; then
+  fail "reading the e1 blocks of $backup"
+elif diff -u "$tmp/guide.expected" "$tmp/guide.actual" >"$tmp/guide.diff"; then
+  ok "the backup-restore page's e1 blocks equal those of $guide_rel at $ref"
+else
+  cat "$tmp/guide.diff" >&2
+  fail "the backup-restore e1 commands differ from $guide_rel at $ref (what the Koinon end-to-end test runs); change the command in the Koinon repository first, then move koinon.ref"
+fi
+[[ $failures -eq 0 ]] && ok "$runner_rel at $ref runs every e1 block of the backup page: $(tr '\n' ' ' <<<"$gused")"
 
 if [[ $failures -ne 0 ]]; then
   echo "commands-check: $failures problem(s)" >&2

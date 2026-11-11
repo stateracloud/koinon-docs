@@ -83,7 +83,7 @@ encryption keys is `<name>-kek`, or the Secret you set in `secrets.kek.existingS
    kubectl -n koinon get pods
    ```
 
-## Upgrading to install-marked OpenShell objects
+## Upgrading to install-marked OpenShell objects (issue 461)
 
 The release that adds the install mark (Secret `koinon-install-mark`) makes every OpenShell object
 carry the mark of the install that made it, so two installs on one gateway do not touch each other's

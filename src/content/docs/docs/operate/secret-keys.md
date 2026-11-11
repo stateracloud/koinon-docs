@@ -48,18 +48,6 @@ older than `secrets.kek.activePeriod` (default 365 days) or when a value is wrap
 Secret no longer has. `keys` reads the Secret through the Kubernetes API (`KOINON_KEK_SECRET`) and the
 database (`DATABASE_URL`), both set in the `koinon-api` pod.
 
-`keys status` counts values; it does not open them. To prove that the key set opens every stored
-value, run `keys verify`. It decrypts each sealed value in memory, prints one line for each that does
-not open (its table, org and row, and why: `unknown_kek`, `open`, `envelope`, or `database`), and
-exits 1 if there is any. It is read-only: it takes no row lock, writes nothing and records no audit
-event, and it never prints a value. It is the check after a restore, before the install is released
-from restore-hold ([Back up and restore](/docs/operate/backup-restore/)). Run it
-also after you restore a key backup, to see that the backup holds every key the values need.
-
-```sh
-kubectl -n koinon exec deploy/koinon-api -- koinon-api keys verify
-```
-
 ## Back up the KEK Secret
 
 Do this once the install is up (the Secret exists after `koinon-api` has started) and after every
@@ -545,9 +533,9 @@ changed in `before` and `after`. The first start writes every setting; a restart
 writes nothing; two replicas starting together write one event. Like the other start-up writes it is
 retried in the background every 30 seconds while the database refuses the install audit writer role.
 
-The list is fixed in the binary ([`settings.go`](https://github.com/stateracloud/koinon/blob/main/internal/cmd/koinonapi/settings.go)): the auth and
+The list is fixed in the binary ([`settings.go`](https://github.com/stateracloud/koinon/blob/v0.1.0-rc.13/internal/cmd/koinonapi/settings.go) at the v0.1.0-rc.13 tag): the auth and
 session flags, the network and gateway flags, the key and wrapping flags (`kek-*`, `openbao-*`,
-`awskms-*`, the saved-work flags), `otlp-addr`, `otlp-token-dir`, `durable`, `run-cap-sweep-interval`, `restore-hold`,
+`awskms-*`, the saved-work flags), `otlp-addr`, `otlp-token-dir`, `durable`, `run-cap-sweep-interval`,
 `chart-version` (the chart passes `.Chart.Version`) and `image-version`. A flag that names a Secret, a
 file or a directory is recorded by name only: `koinon-api` never opens it, reads its content or hashes
 it. A URL is recorded as `scheme://host[:port]` only: user info, path, query and fragment are dropped,

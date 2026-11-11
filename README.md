@@ -5,7 +5,7 @@ The source of the Koinon documentation site, <https://koinon.stateracloud.com>. 
 [Astro Starlight](https://starlight.astro.build) site with the Koinon theme. The code, the
 decisions and the issue tracker are in [stateracloud/koinon](https://github.com/stateracloud/koinon).
 
-The pages describe one Koinon release, named in `koinon.ref` (today `v0.1.0-rc.11`). While the
+The pages describe one Koinon release, named in `koinon.ref` (today `v0.1.0-rc.13`). While the
 site is pre-release, every page carries a banner and a `noindex` tag, and `robots.txt` disallows all
 (`PRE_RELEASE` in `site.config.mjs`).
 
@@ -42,14 +42,9 @@ The quickstart and the backup-restore page show shell commands in fenced blocks 
 `sh e1=<name>`. The Koinon repository tests exactly these commands in its end-to-end test, so it owns
 them. `hack/commands-check.sh` fetches the Koinon release named in `koinon.ref` and checks that:
 
-- the quickstart's blocks are valid shell and equal the blocks of `test/e2e/commands/quickstart.e1`
-  (the command files are read by `hack/docs-e1.sh` of the release, in file mode with `E1_FILE`, so
-  the release needs that script too);
-- the backup-restore page's blocks are valid shell and equal the blocks of
-  `test/e2e/commands/backup-restore.e1`.
-
-For each page the block names, their order and the commands must be equal. A block on one side only
-fails the check, and so does a page or a file with no blocks.
+- the quickstart's blocks are valid shell and equal `test/e2e/quickstart.golden.sh`;
+- the backup-restore page's blocks are valid shell, equal command for command the blocks of the guide
+  that `test/e2e/backup-restore.sh` runs, and are exactly the blocks that script runs by name.
 
 To change a command, change it in the Koinon repository, cut a release, then move `koinon.ref` and the
 page together. Run the check with bash 5 (`brew install bash` on macOS). For an offline run, set
@@ -71,11 +66,10 @@ page together. Run the check with bash 5 (`brew install bash` on macOS). For an 
   links only.
 
 It needs bash 5, helm and Go (the versions in `go.mod` and `hack/versions.env` of the release; CI
-installs them with `hack/koinon-pins.sh`). The Go tests of the release read the pages from the
-directory in `KOINON_PAGES_DIR`; the script sets it to the pages of this repository and runs the tests
-in the release. The check fails when one of the two tests is missing, skipped or failed in the release.
-It also requires a `yaml model-provider` block on the quickstart and the models page and a
-`yaml mcp-server` block on the MCP servers page. For an offline run, set `KOINON_SRC`
+installs them with `hack/koinon-pins.sh`). The Go test of the release reads the pages from fixed paths
+under `docs/site/`, so the script runs it in a temporary copy of the release, with the pages of this
+repository put at those paths. The check fails when one of the two tests is missing, skipped or failed in the release
+(the Koinon repository then has to give the check a new source). For an offline run, set `KOINON_SRC`
 as for the commands check, and `KOINON_MAIN_SRC` to a checkout or export of main for the links to
 main. Without `KOINON_MAIN_SRC`, an offline run fails; `PAGES_CHECK_SKIP_MAIN_LINKS=1` skips those
 links and prints a `skip:` line. CI must never set it. Set `PAGES_DIR` to check a changed copy of the
