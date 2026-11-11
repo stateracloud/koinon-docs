@@ -141,9 +141,16 @@ Without `overhead.podFixed`:
 - Without a cpu value, the work of the guest kernel and of the VMM comes out of the cpu limit of
   the workload.
 
-The preflight warns when memory or cpu is missing. The message reads
-`handler <handler> has no overhead.podFixed <memory and cpu | memory | cpu>: ...` and ends with
-the values to start from (ADR 0075). The warning does not fail the install.
+The preflight warns when memory or cpu is missing. The warning does not fail the install. Here
+`<handler>` is the handler of your RuntimeClass. The message is one of these three:
+
+```text
+handler <handler> has no overhead.podFixed memory and cpu: the scheduler and ResourceQuota undercount every vm sandbox by its VM's fixed cost, and a sandbox near its memory limit can get the VMM OOM-killed (ADR 0075)
+handler <handler> has no overhead.podFixed memory: the scheduler and ResourceQuota undercount every vm sandbox by its VM's fixed memory, and a sandbox near its memory limit can get the VMM OOM-killed (ADR 0075)
+handler <handler> has no overhead.podFixed cpu: the scheduler and ResourceQuota undercount every vm sandbox by its VM's fixed cpu, and the guest kernel's and VMM's work comes out of the workload's cpu limit, so a busy sandbox is throttled (ADR 0075)
+```
+
+The preflight also prints the values to start from.
 
 References:
 
