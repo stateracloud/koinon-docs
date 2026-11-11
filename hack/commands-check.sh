@@ -59,35 +59,12 @@ for f in "$quickstart" "$backup" "$golden" "$runner" "$guide" "$e1sh"; do
   [[ -f $f ]] || { echo "missing file: $f" >&2; exit 2; }
 done
 
-# blocks <page>: "<name>\t<line>" for each command line of each e1 block, in order (docs-e1.sh).
-blocks() {
-  awk '
-    /^```/ {
-      if (name != "") { name = ""; next }
-      if (match($0, /^```(sh|bash) +e1=[a-z0-9-]+/)) {
-        s = substr($0, RSTART, RLENGTH); sub(/^.*e1=/, "", s); name = s
-        if (name in seen) { print "duplicate e1 block: " name > "/dev/stderr"; exit 2 }
-        seen[name] = 1; print name "\t"; next
-      }
-      next
-    }
-    name != "" { print name "\t" $0 }
-  ' "$1"
-}
-names() { blocks "$1" | cut -f1 | uniq; }
-show() { # show <page> <name>: one block's commands
-  local out
-  out=$(blocks "$1" | awk -F'\t' -v n="$2" '$1 == n && NF > 1 && $2 != "" { sub(/^[^\t]*\t/, ""); print }')
-  [[ -n $out ]] || { echo "no e1 block named $2 in $1" >&2; return 1; }
-  printf '%s\n' "$out"
-}
-script() { # script <page>: every block under a "# e1=<name>" line (the golden form)
-  local n
-  for n in $(names "$1"); do
-    echo "# e1=$n"
-    show "$1" "$n"
-  done
-}
+# The page side is read by the release's own reader (hack/docs-e1.sh with E1_DOC set), so the page and
+# the command file are read by one set of rules (a tab-leading <<-EOF body included).
+e1doc() { E1_DOC=$1 bash "$e1sh" "${@:2}"; }
+names() { e1doc "$1" names; }
+show() { e1doc "$1" show "$2"; }
+script() { e1doc "$1" script; }
 
 # 1. The quickstart's e1 blocks.
 qnames=$(names "$quickstart") || { fail "reading the e1 blocks of $quickstart"; qnames=""; }
