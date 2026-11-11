@@ -268,7 +268,7 @@ and step 3 replaces it with yours.
 
 Then decide about the install mark. If the new install **replaces** the old one on the same OpenShell
 gateway, stop the old install first (scale its Deployments to zero or uninstall it). Two running
-installs with the same mark both own the objects, which is the clash this mark prevents. Then
+installs with the same mark both own the objects, which is the clash this mark prevents (issue 461). Then
 apply the mark backup before step 4 (Start), so the new install owns the sandboxes, providers and
 workspaces the old one made. The pods read the mark from the Secret only when they start; a pod that is
 already running keeps the mark it had until you restart it.
@@ -305,7 +305,7 @@ and workspaces on the gateway so that the reconciler makes them again with the n
 
 Objects made before this mark existed have none, and an unmarked object is open to a second install:
 the copy cannot tell it from its own, and can claim, stop or delete it. The live install marks them
-over several passes after the upgrade (see [Upgrading](/docs/operate/upgrading/#upgrading-to-install-marked-openshell-objects)):
+over several passes after the upgrade (see [Upgrading](/docs/operate/upgrading/#upgrading-to-install-marked-openshell-objects-issue-461)):
 a sandbox is recreated with the mark only when no run holds the agent and within the per-pass recreate
 cap, and a provider that a sandbox still attaches is remade only on the pass after that sandbox is gone.
 One pass is therefore not enough.
@@ -330,14 +330,44 @@ raise `reconciler.maxRecreatesPerPass` (default 4) with a `helm upgrade`, or end
 the agents. Do not delete the sandboxes on the gateway by hand to speed it up: the reconciler recreates
 them, but only on a pass when no run holds the agent, and the home volume is replaced.
 
-The reconciler claims only the objects of agents and orgs that still exist. The objects of a **deleted
-agent or org** are still counted but are never claimed, so the gauge stays above 0 for them. Find them on
-the gateway by the missing `koinon.dev/install` label. Workspaces are named `kw-<16 hex>`. List the sandboxes
-and providers of each `kw-` workspace that has no `koinon.dev/install` label, and the provider profiles of
-each such workspace that carry no `koinon.dev/install` annotation, and of each `kw-` workspace that carries
-this install's own label. Skip every workspace and object with another install's label: on a shared
-gateway that is the other install's, and you must not delete it. Check that no live agent uses each
-unmarked object, and delete it on the gateway before the drill. Then the gauge can reach 0.
+### Find the unmarked objects
+
+List the OpenShell objects this install does not own yet, and why. From the reconciler pod:
+
+```bash
+kubectl --context <ctx> -n <ns> exec deploy/<release>-reconciler -- koinon-reconciler unmarked list
+```
+
+Add `--json` for scripts. Each line is workspace, kind, name and reason. The command only reads, and it
+never lists an object that carries another install's mark.
+
+| Reason | Meaning | What to do |
+|---|---|---|
+| `pending-claim` | An active agent's object, or the profile of a configured flavor. The next reconcile claims it. | Nothing; wait for the reconcile. |
+| `draft-agent` | A draft agent's object, or a flavor profile only draft and archived agents use, that the reconciler claims on its next pass. | Nothing, unless it is still listed after a pass. Then one of these holds: the agent's key Secret no longer matches its recorded key, or the agent has no key; the flavor is not rendered by this install; or ownership is off (no install mark, so `koinon_openshell_unmarked_objects_stale` reads 1). Fix that cause, or activate or archive the agent. |
+| `archived-agent` | A flavor profile only archived agents use (the org pass marks it), or an archived agent's object that its cleanup removes. | Nothing; archiving keeps the org's data. |
+| `waits-for-agent` | The reconciler cannot claim it while the agent keeps its status: a draft agent's sandbox in any state other than pending or deleted, with the providers and the GitHub profile it attaches (claimed when the agent is activated; when it is archived, the sandbox is removed, or kept as a retained sandbox under the `retain` home policy), and an archived agent's retained sandbox (claimed when the agent is unarchived). | Activate or archive the draft agent. Unarchive the archived agent, or delete its retained sandbox by hand once its home is no longer wanted. |
+| `org-not-in-db` | In a workspace that no org of this database owns (a deleted org counts). Nothing of this install claims it. On a gateway shared with another install, the line can belong to that install, which has not claimed its objects yet (its workspace carries no mark yet). | Delete it by hand (below), but not on a shared gateway before you check with the other install; it lists the object under one of its own reasons. |
+| `not-reconciler-made` | Not made by the reconciler, or this database has no record of it. Nothing claims it. | Check who made it; delete it only if you are sure it is yours. |
+
+The `pending-claim`, `draft-agent` and `archived-agent` lines clear within a few passes. The
+`org-not-in-db` and `not-reconciler-made` lines do not clear by themselves, so they keep
+`koinon_openshell_unmarked_objects` above 0. The `waits-for-agent` lines are counted apart, in
+`koinon_openshell_unmarked_objects_waiting_for_agent{kind}`, and do not block: 0 in the first gauge means
+no object without a known owner is left.
+
+A restored copy of the same database sees those agents in the same status and does not claim their
+objects either. Do not activate or unarchive agents on the copy. Take the drill's backup only after
+`koinon_openshell_unmarked_objects` reads 0 for every kind and `koinon_openshell_unmarked_objects_stale`
+reads 0. Do not return an agent to draft or archive it on the live install until the drill is over. An
+agent that was active in the backup and is draft or archived on the live install is hidden as
+`waits-for-agent` here, but the copy sees it active and recreates its sandbox, which deletes the live
+home volume. If that happens, keep the copy held (a held reconciler converges no sandbox) and take the
+backup again once the gauges read 0.
+
+To delete an `org-not-in-db` object on the gateway, go in this order: sandbox, providers, profiles, then
+the workspace. OpenShell refuses to delete a profile that a provider still uses, or a workspace that
+still holds objects. There is no `--delete-orphans` yet.
 
 ## What to automate, and what is not covered
 
