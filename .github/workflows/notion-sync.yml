@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copies the docs into Notion (hack/notion-sync.mjs): the pages of this repository, and the ADRs and
+# research notes of stateracloud/koinon at main. Git is the source of truth; the Notion pages are
+# overwritten. Runs after a merge here, every day (for changes in the Koinon repository) and by hand.
+# Setup (one Notion integration, a secret and three variables): README.md, "Notion copy".
+# Not a pull request check: a fork or a pull request never gets the token.
+name: notion-sync
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rewrite every page, also unchanged ones
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notion-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      NOTION_DB_PLATFORM: ${{ vars.NOTION_DB_PLATFORM }}
+      NOTION_DB_ADRS: ${{ vars.NOTION_DB_ADRS }}
+      NOTION_DB_RESEARCH: ${{ vars.NOTION_DB_RESEARCH }}
+    steps:
+      - name: configured?
+        id: cfg
+        run: |
+          if [[ -z $NOTION_TOKEN || -z $NOTION_DB_PLATFORM || -z $NOTION_DB_ADRS || -z $NOTION_DB_RESEARCH ]]; then
+            echo "::notice::Notion sync is not set up (secret NOTION_TOKEN, variables NOTION_DB_*); skipping"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.cfg.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: steps.cfg.outputs.run == 'true'
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - if: steps.cfg.outputs.run == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - if: steps.cfg.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.cfg.outputs.run == 'true'
+        env:
+          FORCE: ${{ inputs.force && '--force' || '' }}
+        run: node hack/notion-sync.mjs $FORCE
