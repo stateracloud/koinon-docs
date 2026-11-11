@@ -31,24 +31,25 @@ after it cannot change the status any more, so the server cuts the connection: t
 transfer (curl exits non-zero), never a body that ends cleanly. `koinon-api audit export --out <file>`
 creates a new file and removes it again when the export fails, so a partial file is never left behind.
 
-## Format `koinon.audit.export.v1`
+## Format `koinon.audit.export.v2`
 
 The first line is the header, then one line per event in `chain_seq` order. Every line is one JSON object.
+An install `audit.anchor` event is followed by an `anchor_heads` stream line with that anchor's org
+heads (see [Anchors](#anchors)); the header never lists them.
 
 ```json
-{"format":"koinon.audit.export.v1","chain":"install","install_id":"0192...","from_seq":1,"head":{"chain_seq":2,"hash":"9f2c...64 hex digits"}}
+{"format":"koinon.audit.export.v2","chain":"install","install_id":"0192...","from_seq":1,"head":{"chain_seq":2,"hash":"9f2c...64 hex digits"}}
 {"chain_seq":1,"id":"0192...","actor_kind":"system","actor_id":"koinon-api:bootstrap","action":"platform_admin.bootstrap","target_kind":"user","target_id":"0192...","summary_text":"{\"after\": {}}","summary":{"after":{}},"request_id":"","created_at_micros":1788000000000000,"prev_hash":"0000...","hash":"ab12..."}
 ```
 
 | Header field | Meaning |
 | --- | --- |
-| `format` | Always `koinon.audit.export.v1`. |
+| `format` | Always `koinon.audit.export.v2`. |
 | `chain` | `install` or `org`. |
 | `install_id` | The install's ID (lower-case UUID text). |
 | `org_id` | The org's ID, for `chain: org` only. |
 | `from_seq` | `chain_seq` of the first event line: 1 for the whole chain. |
 | `head` | `chain_seq` and `hash` of the chain's last event when the export started. Events appended later are not in the file. |
-| `anchors` | Install export only, left out when there is none: one entry per `audit.anchor` event in the file, `{"chain_seq","event_id","org_count","heads_root","heads":[{"org_id","chain_seq","hash"}]}`. See [Anchors](#anchors). |
 
 An event line has `chain_seq`, `id`, `actor_kind`, `actor_id`, `action`, `target_kind`, `target_id`,
 `request_id`, `created_at_micros` (microseconds since the Unix epoch), `prev_hash` and `hash` (64
@@ -134,8 +135,15 @@ head (`chain_seq` and `hash`) of every org chain at that moment: the event's sum
 anchored hash at the anchored `chain_seq`. A chain rewritten or removed behind an anchor fails and names the
 org and the anchor. An org created after the last anchor has nothing to check yet and passes.
 
-An install export carries the anchors of its range in the header, and `verify --file` checks them against the
-anchor events with no database. Keep an install export, then check an org export against it:
+An install export writes each anchor's org heads as an `anchor_heads` stream line right after the
+`audit.anchor` event:
+
+```json
+{"line":"anchor_heads","chain_seq":5,"event_id":"0192...","org_count":2,"heads_root":"9f2c...","heads":[{"org_id":"0192...","chain_seq":3,"hash":"ab12..."},{"org_id":"0192...","chain_seq":7,"hash":"cd34..."}]}
+```
+
+`verify --file` checks each stream line against its event as it reads, with no database, so memory does
+not grow with the number of anchors. Keep an install export, then check an org export against it:
 
 ```sh
 koinon-api audit verify --file org-0192.jsonl --anchors install.jsonl
@@ -156,7 +164,4 @@ one was written.
 Ship the `anchored the org audit chains` log lines (they carry `heads_root` and `install_head`) off the
 cluster to get a witness the database can't rewrite.
 
-An install export carries every anchor in its range in one header line. On a large install export by
-period with `--from-seq`, so the header holds only that period's anchors. A full export from seq 1 puts
-every anchor in the header: about 110 MB a year at 100 orgs anchored hourly. Moving each anchor's heads
-into the stream next to its `audit.anchor` event is planned before v0.3.
+The header size does not grow with the anchor count: heads ride in the stream, not in the header.
