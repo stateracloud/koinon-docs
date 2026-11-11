@@ -305,7 +305,7 @@ and workspaces on the gateway so that the reconciler makes them again with the n
 
 Objects made before this mark existed have none, and an unmarked object is open to a second install:
 the copy cannot tell it from its own, and can claim, stop or delete it. The live install marks them
-over several passes after the upgrade (see [Upgrading](/docs/operate/upgrading/)):
+over several passes after the upgrade (see [Upgrading](/docs/operate/upgrading/#upgrading-to-install-marked-openshell-objects-issue-461)):
 a sandbox is recreated with the mark only when no run holds the agent and within the per-pass recreate
 cap, and a provider that a sandbox still attaches is remade only on the pass after that sandbox is gone.
 One pass is therefore not enough.
