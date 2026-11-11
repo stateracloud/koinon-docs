@@ -268,7 +268,7 @@ and step 3 replaces it with yours.
 
 Then decide about the install mark. If the new install **replaces** the old one on the same OpenShell
 gateway, stop the old install first (scale its Deployments to zero or uninstall it). Two running
-installs with the same mark both own the objects, which is the clash this mark prevents. Then
+installs with the same mark both own the objects, which is the clash this mark prevents (issue 461). Then
 apply the mark backup before step 4 (Start), so the new install owns the sandboxes, providers and
 workspaces the old one made. The pods read the mark from the Secret only when they start; a pod that is
 already running keeps the mark it had until you restart it.
@@ -305,7 +305,7 @@ and workspaces on the gateway so that the reconciler makes them again with the n
 
 Objects made before this mark existed have none, and an unmarked object is open to a second install:
 the copy cannot tell it from its own, and can claim, stop or delete it. The live install marks them
-over several passes after the upgrade (see [Upgrading](/docs/operate/upgrading/#upgrading-to-install-marked-openshell-objects)):
+over several passes after the upgrade (see [Upgrading](/docs/operate/upgrading/#upgrading-to-install-marked-openshell-objects-issue-461)):
 a sandbox is recreated with the mark only when no run holds the agent and within the per-pass recreate
 cap, and a provider that a sandbox still attaches is remade only on the pass after that sandbox is gone.
 One pass is therefore not enough.

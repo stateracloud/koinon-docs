@@ -106,6 +106,58 @@ distribution documents (on Talos, the `kata-containers` extension).
 OpenShell only attaches RuntimeClasses that carry the label `openshell.ai/sandbox-attachable`. Label
 yours if it does not have it.
 
+### Kata memory and `overhead.podFixed`
+
+A Kata RuntimeClass must set `overhead.podFixed` for memory and cpu. This section says why.
+
+Kata starts a VM for each sandbox. The setting `default_memory` is the RAM of the guest. The host
+charges this RAM only when the guest touches it. The guest gets `default_memory` plus the memory
+limits of the containers.
+
+`overhead.podFixed` is the cost of one sandbox beyond its container limits. This cost is the guest
+kernel, `kata-agent`, the shim, the VMM and `virtiofsd`. Kubernetes adds `podFixed` to the pod
+cgroup limit. It also adds `podFixed` to the view of the scheduler and of ResourceQuota. `podFixed`
+does not need to cover `default_memory`.
+
+The `kata-deploy` defaults are a good start:
+
+| Handler | memory | cpu |
+| --- | --- | --- |
+| Cloud Hypervisor (`kata` on Talos) | `130Mi` | `250m` |
+| QEMU | `320Mi` | `250m` |
+
+If you set `enable_mem_prealloc` or use hugepages, the host charges the whole guest at boot. Then
+`podFixed` must also cover `default_memory`.
+
+Measure the real cost under load, and raise the values if needed. Take the memory of the pod
+cgroup (`memory.current`) and subtract the nominal VM size. The
+[Kata sizing guide for sandbox overhead](https://github.com/kata-containers/kata-containers/blob/main/docs/how-to/how-to-size-sandbox-overhead-runtime-rs.md)
+explains how to measure it (see also the links below).
+
+Without `overhead.podFixed`:
+
+- The scheduler and ResourceQuota count too little for every `vm` sandbox.
+- A guest that is bigger than its pod cgroup can get the VMM OOM-killed.
+- Without a cpu value, the work of the guest kernel and of the VMM comes out of the cpu limit of
+  the workload.
+
+The preflight warns when memory or cpu is missing. The warning does not fail the install. Here
+`<handler>` is the handler of your RuntimeClass. The message is one of these three:
+
+```text
+handler <handler> has no overhead.podFixed memory and cpu: the scheduler and ResourceQuota undercount every vm sandbox by its VM's fixed cost, and a sandbox near its memory limit can get the VMM OOM-killed (ADR 0075)
+handler <handler> has no overhead.podFixed memory: the scheduler and ResourceQuota undercount every vm sandbox by its VM's fixed memory, and a sandbox near its memory limit can get the VMM OOM-killed (ADR 0075)
+handler <handler> has no overhead.podFixed cpu: the scheduler and ResourceQuota undercount every vm sandbox by its VM's fixed cpu, and the guest kernel's and VMM's work comes out of the workload's cpu limit, so a busy sandbox is throttled (ADR 0075)
+```
+
+The preflight also prints the values to start from.
+
+References:
+
+- [Kubernetes: Pod Overhead](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-overhead/)
+  and [KEP-688](https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/688-pod-overhead).
+- [Kata Containers: RuntimeClass setup with containerd](https://github.com/kata-containers/kata-containers/blob/main/docs/how-to/how-to-use-k8s-with-containerd-and-kata.md).
+
 kind has no VM runtime. For a throwaway cluster, use `runc` and say so in your values (the
 [quickstart](/docs/start/quickstart/) shows how):
 

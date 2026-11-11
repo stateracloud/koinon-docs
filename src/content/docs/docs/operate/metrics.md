@@ -29,13 +29,10 @@ The reconciler runs as one leading replica; standby replicas report the Go and p
 | `koinon_reconciler_gateway_apply_duration_seconds` | histogram | none | Time to apply the gateway state, including the wait for the reload. |
 | `koinon_reconciler_gateway_config_rejected` | gauge | none | 1 while the last gateway apply was refused whole by agentgateway (standalone mode), which keeps serving its previous config; 0 otherwise. The reason is in the reconciler log. |
 | `koinon_reconciler_sandboxes` | gauge | `state`: `pending`, `starting`, `ready`, `stopping`, `stopped`, `error`, `deleting`, `deleted`, `retained` | Agent sandboxes by recorded state, set at the end of each pass. |
-| `koinon_openshell_unmarked_objects` | gauge | `kind`: `sandbox`, `provider`, `profile` | OpenShell objects in this install's workspaces without the `koinon.dev/install` mark. At most once per resync interval (not on every wake-up pass) the reconciler lists the gateway's sandboxes and providers across all workspaces and the provider profiles of each workspace that is unmarked or carries this install's mark, and counts those with no mark (platform and built-in profiles are not counted); an object marked by another install is not counted. It counts every object on the gateway, including the sandboxes of held-back or failing agents and of archived (`retained`) agents. The install claims them over several passes after an upgrade to the release that adds the mark ([Upgrading](/docs/operate/upgrading/#upgrading-to-install-marked-openshell-objects)); 0 for every kind with `koinon_openshell_unmarked_objects_stale` 0 means no other install can adopt them. It is 0 while the install has no mark, and then `koinon_openshell_unmarked_objects_stale` is 1. |
-| `koinon_openshell_unmarked_objects_stale` | gauge | | 1 until the first complete count, after a count whose gateway list failed, and while the install has no mark (ownership off, so nothing is safe): `koinon_openshell_unmarked_objects` then shows the last good values, not the current ones. 0 after a complete count. |
 | `koinon_reconciler_agents_waiting_for_gateway_key` | gauge | none | Agents whose sandbox work the last pass held back because the gateway did not serve their new key yet. |
 | `koinon_reconciler_sandbox_repairs_total` | counter | none | Stuck, failed or completed sandboxes deleted to be recreated ([stuck sandboxes](/docs/operate/agent-health/)). |
 | `koinon_reconciler_agents_marked_unhealthy_total` | counter | none | Agents marked unhealthy because their sandbox kept failing. |
 | `koinon_reconciler_sandbox_observer_errors_total` | counter | `reason`: `forbidden`, `not_found`, `other` | Failed reads of sandbox pods or failed RoleBindings of the [sandbox observer](/docs/operate/agent-health/#how-koinon-finds-the-cause). `forbidden` means the cluster refused (the RoleBinding is gone, or `openshell.gatewayId` is wrong). The observer never fails a pass. |
-| `koinon_reconciler_openshell_gateway_id_mismatch` | gauge | none | 1 while the OpenShell gateway's `gateway_id` differs from `openshell.gatewayId`; 0 otherwise. The sandbox admission policies select namespaces by that ID, so on a mismatch they cover none of the gateway's sandboxes and fail open. Checked on every pass from OpenShell's gateway ConfigMap; alert on `== 1`. |
 
 `gateway_rejected` and `gateway_apply` count once per pass, not once per object. Any counted error also makes
 the pass `result="error"`, so `result="ok"` means no error kind increased.
@@ -107,25 +104,6 @@ time they read the KEK Secret (at start and about once a minute).
 | --- | --- | --- | --- |
 | `koinon_kek_active_reachable` | gauge | `backend`: the adapter name of the active KEK (`local`, or the KMS adapter) | 1 while the key that wraps the active KEK answers this process, else 0. With the default local KEK it is always 1. A 0 means stored secrets cannot be opened after the next restart. If the KMS is down when a pod starts, the pod does not start (fail closed) and never reports 0. |
 | `koinon_kek_unbound` | gauge | none | KEKs in the loaded key set that a KMS wrapped before the install binding, so they are not bound to the install ID; set on every load of the key set. Local KEKs are not counted. While it is above 0 the process logs a warning; bind them with `secrets.kek.kms.keyAdmin.rewrapUnbound` or rotate them out ([secret keys](/docs/operate/secret-keys/)). |
-
-### Restore-hold
-
-koinon-api, koinon-agentd and koinon-reconciler each export this gauge ([Back up and restore](/docs/operate/backup-restore/)).
-
-| Metric | Type | Labels | Meaning |
-| --- | --- | --- | --- |
-| `koinon_restore_hold` | gauge | none | 1 while the process runs in restore-hold mode and acts on nothing (`restoreHold` in the chart), else 0. After a release it is 0 on all three. |
-
-The chart renders an alert on it when `metrics.prometheusRule.enabled` is true; without prometheus-operator,
-load the rule into your own Prometheus:
-
-```yaml
-- alert: KoinonRestoreHoldOn
-  expr: max(koinon_restore_hold) == 1
-  for: 30m
-```
-
-A held install does no work. Release it as the [Back up and restore](/docs/operate/backup-restore/) guide describes.
 
 ### Durable workflows
 
