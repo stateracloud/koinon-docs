@@ -1,6 +1,9 @@
 ---
 title: Questions from agents
 description: How an agent asks a person with ask_user, what happens with no answer, and the reminder and expiry times.
+area: work-model
+tags: [tasks]
+audience: [user]
 ---
 
 An agent can ask a person instead of guessing. It calls the tool `ask_user`, which every active agent

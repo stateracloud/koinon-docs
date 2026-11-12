@@ -1,6 +1,9 @@
 ---
 title: Budgets
 description: Set the org's monthly cap, each agent's daily limit and the limits of one run, and read the notifications.
+area: models-spend
+tags: [budgets, spend-ledger]
+audience: [operator]
 ---
 
 Budgets stop spending, not just report it. There are three limits, and the first one reached stops the

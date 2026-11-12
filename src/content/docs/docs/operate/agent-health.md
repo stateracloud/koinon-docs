@@ -1,6 +1,9 @@
 ---
 title: Stuck sandboxes and new instructions
 description: What Koinon does when an agent's sandbox gets stuck, how to push the work it saves, and how to start fresh sessions after a new agent version.
+area: runtime-sandbox
+tags: [sandbox, runs]
+audience: [operator]
 ---
 
 ## A stuck sandbox

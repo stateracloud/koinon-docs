@@ -35,6 +35,7 @@ pnpm build    # writes dist/; fails on a broken internal link
 | `hack/pages-check.sh` | the pages check (below) |
 | `hack/koinon-pins.sh` | prints the Go and Helm versions that the pinned release uses (CI installs them) |
 | `hack/lib/koinon-src.sh` | how both checks find the Koinon sources |
+| `hack/notion-sync.mjs` | the Notion copy (below) |
 
 ## The commands check
 
@@ -84,6 +85,47 @@ A merge to `main` deploys to <https://koinon.stateracloud.com>; the address is t
 with the address. The preview is at `https://<branch>-koinon-docs.stateracloud.workers.dev`, where
 `<branch>` is the branch name with each `/` changed to `-`. It goes away with the branch.
 Nothing in this repository's CI deploys. CI runs four checks: `build`, `commands` (both scripts), `gitleaks`, `dco`.
+The separate workflow `notion-sync` is not a check (see Notion copy).
+
+## Notion copy
+
+`hack/notion-sync.mjs` copies the docs into three Notion databases: **Platform Docs** (the pages of
+this repository), **ADRs** (`docs/adr` of the Koinon repository at main) and **Research**
+(`docs/research` and `docs/spikes` there). Git stays the source of truth. A run rewrites each page
+whose source changed (the `Hash` property holds the source's sha256; `Path` is the key) and archives
+a page whose source is gone. Relative links become links to GitHub at main, and `/docs/` links
+become links to the site. The workflow `notion-sync` runs it after a merge to `main`, every day at
+04:17 UTC, and by hand (`force` rewrites every page). `build` runs `--emit`, which converts every
+page without touching Notion.
+
+Setup, once:
+
+1. In Notion, create an internal integration (Settings, Connections, Develop or manage
+   integrations) with the capabilities Read, Update and Insert content. Open the **Koinon** page,
+   then Connections, and add the integration. The databases below that page inherit it.
+2. In this repository, add the secret `NOTION_TOKEN` (the integration's token) and the variables
+   `NOTION_DS_PLATFORM`, `NOTION_DS_ADRS` and `NOTION_DS_RESEARCH`, each set to the ID of its
+   database's data source (Notion: the database's menu, "Manage data sources", "Copy data source ID").
+   Without them, the workflow skips.
+
+Each database needs these properties: `Title` (title), `Path`, `Hash` (text), `Source` (URL),
+`Synced` (date), `Area` (select) and `Tags` (multi-select). ADRs also need `Number` (number), `State`
+(select: Proposed, Accepted, Superseded, Deprecated, Rejected, Other), `Status` (text) and `Date`
+(date). Research needs `Kind` (select: Research, Spike), `Stage` (select: Draft, Complete,
+Abandoned, Superseded), `Status` (text) and `Date` (date). Platform Docs needs `Section` (select:
+Overview, Start, Use, Operate), `Description` (text) and `Audience` (multi-select).
+
+## Page metadata
+
+Every page under `src/content/docs/docs/` has, besides `title`, a `description`, an `area`, one to
+six `tags` and an `audience` (`user`, `operator`, `contributor`) in its frontmatter. The areas and
+tags are the Koinon repository's (`docs/metadata/areas.txt`, `docs/metadata/tags.txt`, ADR 0115;
+how to choose: its `docs/dev/doc-metadata.md`). `src/content.config.ts` checks the shape at build
+time, and `hack/notion-sync.mjs --emit` in the `build` job checks the names against the Koinon
+repository at main. A new tag lands there first.
+
+Run it locally with the same variables: `node hack/notion-sync.mjs --dry-run` lists what would
+change, and `KOINON_MAIN_SRC=<checkout of koinon at main>` skips the fetch.
 
 ## Contributing
 

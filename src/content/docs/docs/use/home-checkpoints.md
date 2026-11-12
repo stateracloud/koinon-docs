@@ -1,6 +1,9 @@
 ---
 title: Home checkpoints and the archive tier
 description: Save each agent's home to S3 so a recreated or archived sandbox resumes its session.
+area: runtime-sandbox
+tags: [agent-home, object-storage]
+audience: [user]
 ---
 
 An agent's home is the part of its sandbox that holds its work: sessions, notes and scratch work.

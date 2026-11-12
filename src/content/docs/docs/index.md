@@ -1,6 +1,9 @@
 ---
 title: Koinon documentation
 description: Install Koinon, connect GitHub and run your first agent.
+area: engineering-process
+tags: [docs, install]
+audience: [user, operator]
 ---
 
 Koinon runs AI agents in sandboxes on your Kubernetes cluster. You give an agent a task. The

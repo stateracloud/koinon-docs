@@ -1,6 +1,9 @@
 ---
 title: The audit log
 description: What Koinon records, how org admins read it, and how to check that nobody changed it.
+area: security-audit
+tags: [audit]
+audience: [user, operator]
 ---
 
 Koinon writes an audit event for every change to an org's configuration and for the decisions that

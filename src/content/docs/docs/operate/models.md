@@ -1,6 +1,9 @@
 ---
 title: Models
 description: Add model providers and models per org, in the UI, with Kubernetes Secrets or the admin API.
+area: models-spend
+tags: [models, credentials, agentgateway]
+audience: [operator]
 ---
 
 Agents never hold a model key. A sandbox gets a placeholder key and the address of agentgateway.
