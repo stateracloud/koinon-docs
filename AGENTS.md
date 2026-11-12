@@ -36,6 +36,8 @@ tracker are in [stateracloud/koinon](https://github.com/stateracloud/koinon).
   off). On: a banner on every page, a `noindex` meta tag, `robots.txt` disallows all. Do not turn it
   off without the maintainer's go.
 - Pages live in `src/content/docs/docs/{start,operate,use}`; the sidebar is in `astro.config.mjs`.
+  Every page has `description`, `area`, `tags` and `audience` in its frontmatter, from the Koinon
+  repository's `docs/metadata/` (README.md, "Page metadata").
   Internal links are absolute (`/docs/operate/models/`), never relative.
 - Theme: `src/styles/koinon.css` maps the Koinon design tokens onto Starlight. Purple is for actions
   and links only. Fonts are self-hosted (fontsource); no request to an external host, no analytics.

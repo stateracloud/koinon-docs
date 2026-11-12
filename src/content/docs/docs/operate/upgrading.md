@@ -1,6 +1,9 @@
 ---
 title: Upgrading Koinon
 description: No schema or upgrade promise before v0.3. From v0.3, patch upgrades roll and minor upgrades are stop, migrate, start. How to check, and how to go back.
+area: install-operations
+tags: [upgrade, migrations]
+audience: [operator]
 ---
 
 How you upgrade depends on the version you move between.

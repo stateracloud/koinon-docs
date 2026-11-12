@@ -1,6 +1,9 @@
 ---
 title: Quickstart
 description: From helm install to an approved pull request in about 15 minutes.
+area: install-operations
+tags: [install, models, github, tasks]
+audience: [user, operator]
 ---
 
 You will install Koinon, sign in, add a model provider, connect a GitHub App, create the

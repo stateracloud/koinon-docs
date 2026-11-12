@@ -104,14 +104,25 @@ Setup, once:
    integrations) with the capabilities Read, Update and Insert content. Open the **Koinon** page,
    then Connections, and add the integration. The databases below that page inherit it.
 2. In this repository, add the secret `NOTION_TOKEN` (the integration's token) and the variables
-   `NOTION_DB_PLATFORM`, `NOTION_DB_ADRS` and `NOTION_DB_RESEARCH`, each set to its database's ID.
-   The ID is the 32 hex characters in the database's URL. Without them, the workflow skips.
+   `NOTION_DS_PLATFORM`, `NOTION_DS_ADRS` and `NOTION_DS_RESEARCH`, each set to the ID of its
+   database's data source (Notion: the database's menu, "Manage data sources", "Copy data source ID").
+   Without them, the workflow skips.
 
-Each database needs these properties: `Title` (title), `Path`, `Hash` (text), `Source` (URL) and
-`Synced` (date). ADRs also need `Number` (number), `State` (select: Proposed, Accepted, Superseded,
-Deprecated, Rejected, Other), `Status` (text) and `Date` (date). Research needs `Kind` (select:
-Research, Spike). Platform Docs needs `Section` (select: Overview, Start, Use, Operate) and
-`Description` (text).
+Each database needs these properties: `Title` (title), `Path`, `Hash` (text), `Source` (URL),
+`Synced` (date), `Area` (select) and `Tags` (multi-select). ADRs also need `Number` (number), `State`
+(select: Proposed, Accepted, Superseded, Deprecated, Rejected, Other), `Status` (text) and `Date`
+(date). Research needs `Kind` (select: Research, Spike), `Stage` (select: Draft, Complete,
+Abandoned, Superseded), `Status` (text) and `Date` (date). Platform Docs needs `Section` (select:
+Overview, Start, Use, Operate), `Description` (text) and `Audience` (multi-select).
+
+## Page metadata
+
+Every page under `src/content/docs/docs/` has, besides `title`, a `description`, an `area`, one to
+six `tags` and an `audience` (`user`, `operator`, `contributor`) in its frontmatter. The areas and
+tags are the Koinon repository's (`docs/metadata/areas.txt`, `docs/metadata/tags.txt`, ADR 0115;
+how to choose: its `docs/dev/doc-metadata.md`). `src/content.config.ts` checks the shape at build
+time, and `hack/notion-sync.mjs --emit` in the `build` job checks the names against the Koinon
+repository at main. A new tag lands there first.
 
 Run it locally with the same variables: `node hack/notion-sync.mjs --dry-run` lists what would
 change, and `KOINON_MAIN_SRC=<checkout of koinon at main>` skips the fetch.

@@ -1,6 +1,9 @@
 ---
 title: Scoped approvals
 description: Approve a kind of action once, for a task, or for an agent until a date, and revoke it later.
+area: work-model
+tags: [approvals]
+audience: [user]
 ---
 
 By default an approval covers one call: the agent asks, you read the change and approve, and Koinon

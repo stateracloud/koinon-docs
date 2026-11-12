@@ -1,5 +1,9 @@
 ---
 title: "Sandbox break-glass: getting into a sandbox pod"
+description: How a cluster admin gets into a sandbox pod in a rare, audited break-glass case when the normal tools fail.
+area: security-audit
+tags: [sandbox, kubernetes]
+audience: [operator]
 ---
 
 Koinon denies `kubectl exec`, `attach`, `port-forward` and the API server's `pods/proxy` and

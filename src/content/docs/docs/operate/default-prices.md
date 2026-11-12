@@ -1,5 +1,9 @@
 ---
 title: "Default prices: sources, updates and overrides"
+description: Where Koinon's default model prices come from, how they update and how admins override them.
+area: models-spend
+tags: [pricing, spend-ledger]
+audience: [operator]
 ---
 
 Koinon prices every model request itself, from the raw usage and a dated price. This runbook says

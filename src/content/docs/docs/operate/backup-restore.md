@@ -1,6 +1,9 @@
 ---
 title: Back up and restore
 description: Back up the database and the encryption keys by hand, restore them into a stopped install, and check the result.
+area: install-operations
+tags: [backup-restore, encryption, database]
+audience: [operator]
 ---
 
 A Koinon install has four parts that must agree after a restore:

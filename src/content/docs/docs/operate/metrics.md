@@ -1,6 +1,9 @@
 ---
 title: Metrics
 description: The Prometheus metrics koinon-api, koinon-reconciler and koinon-agentd expose, and how to scrape them.
+area: install-operations
+tags: [metrics]
+audience: [operator]
 ---
 
 Every Koinon component serves Prometheus metrics on `/metrics`, on a port of its own (9090 by

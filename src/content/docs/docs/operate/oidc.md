@@ -1,6 +1,9 @@
 ---
 title: OIDC login
 description: Sign in to Koinon with your identity provider.
+area: tenancy-identity
+tags: [auth, helm-chart]
+audience: [operator]
 ---
 
 Koinon logs users in with any OpenID Connect provider (authorization code with PKCE): Entra ID, Okta,

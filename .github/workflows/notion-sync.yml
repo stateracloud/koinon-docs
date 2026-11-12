@@ -31,15 +31,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-      NOTION_DB_PLATFORM: ${{ vars.NOTION_DB_PLATFORM }}
-      NOTION_DB_ADRS: ${{ vars.NOTION_DB_ADRS }}
-      NOTION_DB_RESEARCH: ${{ vars.NOTION_DB_RESEARCH }}
+      NOTION_DS_PLATFORM: ${{ vars.NOTION_DS_PLATFORM }}
+      NOTION_DS_ADRS: ${{ vars.NOTION_DS_ADRS }}
+      NOTION_DS_RESEARCH: ${{ vars.NOTION_DS_RESEARCH }}
     steps:
       - name: configured?
         id: cfg
         run: |
-          if [[ -z $NOTION_TOKEN || -z $NOTION_DB_PLATFORM || -z $NOTION_DB_ADRS || -z $NOTION_DB_RESEARCH ]]; then
-            echo "::notice::Notion sync is not set up (secret NOTION_TOKEN, variables NOTION_DB_*); skipping"
+          if [[ -z $NOTION_TOKEN || -z $NOTION_DS_PLATFORM || -z $NOTION_DS_ADRS || -z $NOTION_DS_RESEARCH ]]; then
+            echo "::notice::Notion sync is not set up (secret NOTION_TOKEN, variables NOTION_DS_*); skipping"
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
             echo "run=true" >> "$GITHUB_OUTPUT"

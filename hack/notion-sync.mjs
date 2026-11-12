@@ -15,7 +15,7 @@
 // README.md ("Notion copy").
 //
 // Usage:
-//   hack/notion-sync.mjs                 sync (needs NOTION_TOKEN and the NOTION_DB_* variables)
+//   hack/notion-sync.mjs                 sync (needs NOTION_TOKEN and the NOTION_DS_* variables)
 //   hack/notion-sync.mjs --dry-run       read Notion, print what would change, write nothing
 //   hack/notion-sync.mjs --force         rewrite every page, also those whose Hash matches (after a
 //                                        change to the converter below)
@@ -24,9 +24,9 @@
 //
 // Environment:
 //   NOTION_TOKEN          internal integration token (a secret; never commit it)
-//   NOTION_DB_PLATFORM    database ID of Platform Docs
-//   NOTION_DB_ADRS        database ID of ADRs
-//   NOTION_DB_RESEARCH    database ID of Research
+//   NOTION_DS_PLATFORM    data source ID of Platform Docs
+//   NOTION_DS_ADRS        data source ID of ADRs
+//   NOTION_DS_RESEARCH    data source ID of Research
 //   KOINON_MAIN_SRC       a checkout of stateracloud/koinon at main (default: fetched shallow)
 //   KOINON_REPO           where to fetch it from (default https://github.com/stateracloud/koinon.git)
 
@@ -43,7 +43,7 @@ const SITE = 'https://koinon.stateracloud.com';
 const DOCS_REPO = 'https://github.com/stateracloud/koinon-docs';
 const KOINON_REPO_WEB = 'https://github.com/stateracloud/koinon';
 const NOTION_API = 'https://api.notion.com/v1';
-const NOTION_VERSION = '2022-06-28';
+const NOTION_VERSION = '2025-09-03'; // data sources: a database can hold several
 const TEXT_LIMIT = 2000; // characters per rich text object
 const CHILD_LIMIT = 100; // blocks per append request
 
@@ -75,7 +75,9 @@ function frontmatter(text) {
   const meta = {};
   for (const line of m[1].split('\n')) {
     const kv = line.match(/^([A-Za-z_]+):\s*(.*)$/);
-    if (kv) meta[kv[1]] = kv[2].replace(/^(['"])(.*)\1$/, '$2');
+    if (!kv) continue;
+    const v = kv[2].trim();
+    meta[kv[1]] = v.startsWith('[') ? v.replace(/^\[|\]$/g, '').split(',').map((x) => x.trim().replace(/^(['"])(.*)\1$/, '$2')).filter(Boolean) : v.replace(/^(['"])(.*)\1$/, '$2');
   }
   return { meta, body: text.slice(m[0].length) };
 }
@@ -122,6 +124,15 @@ function sourceNote(url) {
   return `> Synced from [${url.replace('https://github.com/', '')}](${url}). Edit the source in Git; this page is overwritten.\n\n`;
 }
 
+// header <body> <key>: the value of `- Key:` above the first `## ` heading (ADR 0115).
+function headerField(body, key) {
+  const head = body.split(/^## /m)[0];
+  const m = head.match(new RegExp(`^- ${key}:\\s*(.+)$`, 'm'));
+  return m ? m[1].trim() : '';
+}
+const tagList = (s) => s.split(',').map((t) => t.trim()).filter(Boolean);
+const unlink = (s) => s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+
 const ADR_STATES = ['Proposed', 'Accepted', 'Superseded', 'Deprecated', 'Rejected'];
 
 function collectAdrs(src) {
@@ -142,7 +153,7 @@ function collectAdrs(src) {
         path: repoPath,
         hash: sha256(raw),
         title: (title || f).replace(/^\d{4}\.\s*/, ''),
-        props: { Number: Number(f.slice(0, 4)), State: state, Status: status, Date: date },
+        props: { Number: Number(f.slice(0, 4)), State: state, Status: status, Date: date, Area: headerField(body, 'Area'), Tags: tagList(headerField(body, 'Tags')) },
         source,
         markdown: sourceNote(source) + rewriteLinks(body, koinonResolver(repoPath)),
       };
@@ -158,12 +169,21 @@ function collectResearch(src) {
         const raw = readFileSync(p, 'utf8');
         const { title, body } = takeTitle(stripComments(raw));
         const source = `${KOINON_REPO_WEB}/blob/main/${repoPath}`;
+        const status = unlink(headerField(body, 'Status'));
+        const stage = ['Draft', 'Complete', 'Abandoned', 'Superseded'].find((x) => status.startsWith(x)) || '';
         return {
           db: 'research',
           path: repoPath,
           hash: sha256(raw),
           title: title || basename(p, '.md'),
-          props: { Kind: sub === 'spikes' ? 'Spike' : 'Research' },
+          props: {
+            Kind: sub === 'spikes' ? 'Spike' : 'Research',
+            Stage: stage,
+            Status: status,
+            Date: (headerField(body, 'Date').match(/^\d{4}-\d{2}-\d{2}/) || [])[0] || null,
+            Area: headerField(body, 'Area'),
+            Tags: tagList(headerField(body, 'Tags')),
+          },
           source,
           markdown: sourceNote(source) + rewriteLinks(body, koinonResolver(repoPath)),
         };
@@ -188,13 +208,50 @@ function collectPlatform() {
       path: repoPath,
       hash: sha256(raw),
       title: meta.title || basename(p, '.md'),
-      props: { Section: SECTIONS[top] || 'Overview', Description: meta.description || '' },
+      props: {
+        Section: SECTIONS[top] || 'Overview',
+        Description: meta.description || '',
+        Area: meta.area || '',
+        Tags: Array.isArray(meta.tags) ? meta.tags : [],
+        Audience: Array.isArray(meta.audience) ? meta.audience : [],
+      },
       source,
       markdown:
         `> Synced from [${source.replace('https://', '')}](${source}) ([source](${DOCS_REPO}/blob/main/${repoPath})). Edit the source in Git; this page is overwritten.\n\n` +
         rewriteLinks(body, siteResolver),
     };
   });
+}
+
+// Checks the metadata of ADR 0115 against the Koinon repository's vocabulary. The Koinon repository
+// checks its own documents (hack/doc-meta-lint.sh); the same rules are repeated here so the pages of
+// this repository are held to them, and so a bad value never reaches Notion.
+function vocabulary(src, name) {
+  return new Set(
+    readFileSync(join(src, 'docs/metadata', name), 'utf8')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'))
+      .map((l) => l.split(/\s+/)[0]),
+  );
+}
+
+function validate(docs, src) {
+  const areas = vocabulary(src, 'areas.txt');
+  const tags = vocabulary(src, 'tags.txt');
+  const errors = [];
+  for (const d of docs) {
+    const { Area, Tags = [] } = d.props;
+    if (!areas.has(Area)) errors.push(`${d.path}: area '${Area || ''}' is not in docs/metadata/areas.txt`);
+    if (Tags.length < 1 || Tags.length > 6) errors.push(`${d.path}: needs one to six tags (has ${Tags.length})`);
+    if (new Set(Tags).size !== Tags.length) errors.push(`${d.path}: a tag is listed twice`);
+    for (const t of Tags) if (!tags.has(t)) errors.push(`${d.path}: tag '${t}' is not in docs/metadata/tags.txt`);
+    if (d.db === 'platform') {
+      if (!d.props.Description) errors.push(`${d.path}: needs a description`);
+      if (!d.props.Audience.length) errors.push(`${d.path}: needs an audience (user, operator, contributor)`);
+    }
+  }
+  return errors;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -381,11 +438,11 @@ async function notion(method, path, body) {
   }
 }
 
-async function existingPages(dbId) {
+async function existingPages(dsId) {
   const map = new Map();
   let cursor;
   do {
-    const r = await notion('POST', `/databases/${dbId}/query`, { page_size: 100, start_cursor: cursor });
+    const r = await notion('POST', `/data_sources/${dsId}/query`, { page_size: 100, start_cursor: cursor });
     for (const p of r.results) {
       const path = p.properties.Path?.rich_text?.map((t) => t.plain_text).join('') || '';
       const hash = p.properties.Hash?.rich_text?.map((t) => t.plain_text).join('') || '';
@@ -409,7 +466,8 @@ function properties(doc, now) {
   for (const [k, v] of Object.entries(doc.props)) {
     if (k === 'Number') p[k] = { number: v };
     else if (k === 'Date') p[k] = { date: v ? { start: v } : null };
-    else if (k === 'State' || k === 'Section' || k === 'Kind') p[k] = { select: { name: v } };
+    else if (['State', 'Section', 'Kind', 'Area', 'Stage'].includes(k)) p[k] = { select: v ? { name: v } : null };
+    else if (Array.isArray(v)) p[k] = { multi_select: v.map((name) => ({ name })) };
     else p[k] = { rich_text: rt(v) };
   }
   return p;
@@ -453,6 +511,12 @@ async function main() {
 
   const src = koinonSource();
   const docs = [...collectPlatform(), ...collectAdrs(src), ...collectResearch(src)];
+  const errors = validate(docs, src);
+  if (errors.length) {
+    for (const e of errors) console.error(`metadata: ${e}`);
+    console.error(`${errors.length} metadata errors; see docs/dev/doc-metadata.md in the Koinon repository`);
+    process.exit(1);
+  }
 
   if (emit) {
     mkdirSync(emit, { recursive: true });
@@ -465,8 +529,8 @@ async function main() {
     return;
   }
 
-  const dbs = { platform: process.env.NOTION_DB_PLATFORM, adrs: process.env.NOTION_DB_ADRS, research: process.env.NOTION_DB_RESEARCH };
-  const missing = ['NOTION_TOKEN', 'NOTION_DB_PLATFORM', 'NOTION_DB_ADRS', 'NOTION_DB_RESEARCH'].filter((k) => !process.env[k]);
+  const dbs = { platform: process.env.NOTION_DS_PLATFORM, adrs: process.env.NOTION_DS_ADRS, research: process.env.NOTION_DS_RESEARCH };
+  const missing = ['NOTION_TOKEN', 'NOTION_DS_PLATFORM', 'NOTION_DS_ADRS', 'NOTION_DS_RESEARCH'].filter((k) => !process.env[k]);
   if (missing.length) {
     console.error(`missing: ${missing.join(' ')}`);
     process.exit(2);
@@ -496,7 +560,7 @@ async function main() {
       } else {
         const props = properties(d, now);
         props.Hash = { rich_text: [] };
-        const page = await notion('POST', '/pages', { parent: { database_id: dbId }, properties: props });
+        const page = await notion('POST', '/pages', { parent: { type: 'data_source_id', data_source_id: dbId }, properties: props });
         await append(page.id, body);
         await notion('PATCH', `/pages/${page.id}`, { properties: { Hash: { rich_text: rt(d.hash) } } });
         counts.created++;
