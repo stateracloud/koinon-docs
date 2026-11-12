@@ -9,6 +9,10 @@ audience: [user, operator]
 You will install Koinon, sign in, add a model provider, connect a GitHub App, create the
 repo-helper agent, give it a task and approve the pull request it proposes.
 
+:::caution[Pre-alpha]
+Koinon is pre-alpha. It is liable to change in major ways at any release, including its API, database schema and Helm values. There is no schema or upgrade promise before v0.3: an update may need a reinstall. Do not use it for production or for data you cannot lose.
+:::
+
 > **Before v0.3 there is no upgrade promise.** An upgrade between any two releases before v0.3.0
 > may need a reinstall or manual steps listed in the release notes. Backups of the database and the
 > encryption keys, and restoring from them, are supported. See [Upgrading Koinon](/docs/operate/upgrading/).
