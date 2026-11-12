@@ -102,18 +102,26 @@ function rewriteLinks(body, resolve) {
     .join('');
 }
 
+// Relative links resolve against the file's directory, a leading `/` against the repository root
+// (as GitHub renders them), and `#section` against the page itself.
 function koinonResolver(repoPath) {
+  const self = `${KOINON_REPO_WEB}/blob/main/${repoPath}`;
   return (url) => {
-    if (/^[a-z]+:/i.test(url) || url.startsWith('#')) return url;
+    if (/^[a-z]+:/i.test(url)) return url;
+    if (url.startsWith('#')) return self + url;
     const [p, hash] = url.split('#');
-    const target = posix.normalize(posix.join(posix.dirname(repoPath), p));
+    const target = p.startsWith('/') ? posix.normalize(p.slice(1)) : posix.normalize(posix.join(posix.dirname(repoPath), p));
     return `${KOINON_REPO_WEB}/blob/main/${target}${hash ? `#${hash}` : ''}`;
   };
 }
 
-function siteResolver(url) {
-  if (url.startsWith('/')) return SITE + url;
-  return url;
+// Absolute links go to the docs site, `#section` to the page itself on the site.
+function siteResolver(pageUrl) {
+  return (url) => {
+    if (url.startsWith('#')) return pageUrl + url;
+    if (url.startsWith('/')) return SITE + url;
+    return url;
+  };
 }
 
 function sha256(text) {
@@ -218,7 +226,7 @@ function collectPlatform() {
       source,
       markdown:
         `> Synced from [${source.replace('https://', '')}](${source}) ([source](${DOCS_REPO}/blob/main/${repoPath})). Edit the source in Git; this page is overwritten.\n\n` +
-        rewriteLinks(body, siteResolver),
+        rewriteLinks(body, siteResolver(source)),
     };
   });
 }
