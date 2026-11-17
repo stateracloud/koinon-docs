@@ -1,6 +1,9 @@
 ---
 title: Private registries and mirrors
 description: Pull Koinon's images with credentials or through a pull-through registry such as Artifactory, Nexus or Harbor.
+area: install-operations
+tags: [registry, helm-chart]
+audience: [operator]
 ---
 
 Koinon runs a lot of images. Three are Koinon's own, and the rest come from other projects. An

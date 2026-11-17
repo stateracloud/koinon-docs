@@ -1,6 +1,9 @@
 ---
 title: GitHub App
 description: Create a GitHub App, install it and connect it to Koinon.
+area: connectors-tools
+tags: [github, credentials]
+audience: [operator]
 ---
 
 A Koinon connection to GitHub is one GitHub App installation. You create the App, install it on the

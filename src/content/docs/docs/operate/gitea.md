@@ -1,6 +1,9 @@
 ---
 title: Gitea
 description: Create a bot on your Gitea server, give it two tokens and connect it to Koinon.
+area: connectors-tools
+tags: [gitea, credentials]
+audience: [operator]
 ---
 
 A Koinon connection to Gitea is one bot account with two access tokens. Gitea cannot mint tokens for

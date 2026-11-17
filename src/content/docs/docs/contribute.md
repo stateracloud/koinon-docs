@@ -1,6 +1,9 @@
 ---
 title: Contribute to Koinon
 description: How to start contributing, and where the developer documentation lives.
+area: engineering-process
+tags: [docs]
+audience: [contributor]
 ---
 
 Koinon is pre-alpha, so expect things to move. Open an issue before a large change, and read the

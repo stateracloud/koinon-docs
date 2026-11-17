@@ -2,7 +2,8 @@
 #
 # Four checks. There is no deploy job: Cloudflare builds this repository from GitHub itself
 # (Workers Builds). Actions are pinned by commit SHA, the same ones the Koinon repository uses.
-#   build     the site builds, and the build fails on a broken internal link (starlight-links-validator)
+#   build     the site builds, and the build fails on a broken internal link (starlight-links-validator);
+#             the Notion copy's converter runs over every page (hack/notion-sync.mjs --emit)
 #   commands  the `sh e1=<name>` blocks equal the Koinon repository's command files at koinon.ref, and
 #             the chart values, manifests, UI labels and versions on the pages match that release
 #   gitleaks  no secret in any commit of the range
@@ -31,6 +32,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # The Notion copy's converter runs on every change, without Notion (hack/notion-sync.mjs).
+      - run: node hack/notion-sync.mjs --emit "$RUNNER_TEMP/notion"
 
   commands:
     runs-on: ubuntu-latest

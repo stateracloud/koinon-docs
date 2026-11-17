@@ -1,6 +1,9 @@
 ---
 title: MCP servers
 description: Connect remote MCP servers to an org, control which tools agents may call, and see when a server is down.
+area: connectors-tools
+tags: [mcp, egress]
+audience: [operator]
 ---
 
 An MCP server gives agents tools: search a wiki, read a tracker, file an issue. In v0.1 you connect

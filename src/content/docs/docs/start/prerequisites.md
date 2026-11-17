@@ -1,6 +1,9 @@
 ---
 title: Prerequisites
 description: What the cluster needs before you install Koinon, with pinned versions.
+area: install-operations
+tags: [install, kubernetes]
+audience: [operator]
 ---
 
 Koinon installs with one Helm chart. The chart does not install its prerequisites. The install

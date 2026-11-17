@@ -1,6 +1,9 @@
 ---
 title: Gateway modes
 description: How Koinon runs agentgateway, and what exists today.
+area: install-operations
+tags: [agentgateway, kubernetes]
+audience: [operator]
 ---
 
 agentgateway sits between sandboxes and the outside: it holds model keys, forwards model requests,

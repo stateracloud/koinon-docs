@@ -1,6 +1,9 @@
 ---
 title: GitHub Enterprise Server
 description: Connect a GitHub App on your own GitHub Enterprise Server to Koinon.
+area: connectors-tools
+tags: [github, connectors]
+audience: [operator]
 ---
 
 A GitHub Enterprise Server (GHES) connection is a GitHub App installation like the one in

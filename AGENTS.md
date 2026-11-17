@@ -9,6 +9,8 @@ tracker are in [stateracloud/koinon](https://github.com/stateracloud/koinon).
 - Install: `pnpm install --frozen-lockfile` (pnpm and Node versions: `package.json`, `.node-version`).
 - Dev server: `pnpm dev`. Build: `pnpm build` (the build fails on a broken internal link).
 - Commands check: `hack/commands-check.sh` (bash 5). Offline: `KOINON_SRC=<koinon checkout or export>`.
+- Notion copy: `hack/notion-sync.mjs` (setup: README.md, "Notion copy"). Offline: `--emit <dir>` with
+  `KOINON_MAIN_SRC=<koinon checkout at main>`. Git is the source; never edit the Notion pages.
 - Pages check: `hack/pages-check.sh` (bash 5, helm, Go). Offline: `KOINON_SRC` and
   `KOINON_MAIN_SRC` (CI never sets `PAGES_CHECK_SKIP_MAIN_LINKS`). It runs in the `commands` job.
   Chart values, manifests, UI labels, versions and links into the Koinon repository must match the release.
@@ -34,6 +36,8 @@ tracker are in [stateracloud/koinon](https://github.com/stateracloud/koinon).
   off). On: a banner on every page, a `noindex` meta tag, `robots.txt` disallows all. Do not turn it
   off without the maintainer's go.
 - Pages live in `src/content/docs/docs/{start,operate,use}`; the sidebar is in `astro.config.mjs`.
+  Every page has `description`, `area`, `tags` and `audience` in its frontmatter, from the Koinon
+  repository's `docs/metadata/` (README.md, "Page metadata").
   Internal links are absolute (`/docs/operate/models/`), never relative.
 - Theme: `src/styles/koinon.css` maps the Koinon design tokens onto Starlight. Purple is for actions
   and links only. Fonts are self-hosted (fontsource); no request to an external host, no analytics.

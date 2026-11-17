@@ -1,6 +1,9 @@
 ---
 title: Tasks and the inbox
 description: How work is recorded as tasks, and how the inbox shows what needs you.
+area: work-model
+tags: [tasks]
+audience: [user]
 ---
 
 A task is Koinon's record of a piece of work. It is owned by one agent and holds the messages, the

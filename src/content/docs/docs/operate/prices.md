@@ -1,6 +1,9 @@
 ---
 title: Prices
 description: How Koinon prices model requests, the default price list, and your own prices.
+area: models-spend
+tags: [pricing, spend-ledger]
+audience: [operator]
 ---
 
 Koinon works out the cost of every model request itself, from the tokens the provider reports and the

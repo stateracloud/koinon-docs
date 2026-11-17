@@ -1,5 +1,9 @@
 ---
 title: "Secret keys: rotation, backup and compromise"
+description: How to back up, rotate and recover the key-encryption keys that protect Koinon's stored secrets.
+area: security-audit
+tags: [secrets, encryption]
+audience: [operator]
 ---
 
 Koinon stores provider API keys (and a provider's optional cost key), connection secrets (a GitHub

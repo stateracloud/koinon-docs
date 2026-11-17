@@ -1,6 +1,9 @@
 ---
 title: Export and verify the audit log
 description: The JSON lines export format of the audit chains, the hash encoding, and how to check a copy off the cluster.
+area: security-audit
+tags: [audit]
+audience: [operator]
 ---
 
 The install log and each org's audit log are hash chains (see [the audit log](/docs/operate/audit/)). You can

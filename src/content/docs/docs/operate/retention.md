@@ -1,6 +1,9 @@
 ---
 title: Run content retention
 description: How long Koinon keeps what a run said and did, how an org admin changes it, and what stays after the content is removed.
+area: work-model
+tags: [runs]
+audience: [user, operator]
 ---
 
 Koinon stores the content of a run: the messages, thoughts and tool calls of its events. That

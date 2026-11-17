@@ -1,6 +1,9 @@
 ---
 title: Triggers
 description: Start an agent's work on a schedule, or with a direct message in the inbox.
+area: work-model
+tags: [triggers]
+audience: [user]
 ---
 
 A trigger starts a task for an agent without a person creating it. A trigger has an ID, a type, a
