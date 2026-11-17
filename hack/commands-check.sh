@@ -49,22 +49,49 @@ golden_rel=test/e2e/commands/quickstart.e1
 runner_rel=test/e2e/backup-restore.sh
 guide_rel=test/e2e/commands/backup-restore.e1
 e1sh_rel=hack/docs-e1.sh
-koinon_src "$tmp" "$golden_rel" "$runner_rel" "$guide_rel" "$e1sh_rel"
+drill_rel=test/drill/drill_test.go
+koinon_src "$tmp" "$golden_rel" "$runner_rel" "$guide_rel" "$e1sh_rel" "$drill_rel"
 src=$KOINON_SRC_DIR
 golden=$src/$golden_rel
 runner=$src/$runner_rel
 guide=$src/$guide_rel
 e1sh=$src/$e1sh_rel
-for f in "$quickstart" "$backup" "$golden" "$runner" "$guide" "$e1sh"; do
+drill=$src/$drill_rel
+for f in "$quickstart" "$backup" "$golden" "$runner" "$guide" "$e1sh" "$drill"; do
   [[ -f $f ]] || { echo "missing file: $f" >&2; exit 2; }
 done
 
-# The page side is read by the release's own reader (hack/docs-e1.sh with E1_DOC set), so the page and
-# the command file are read by one set of rules (a tab-leading <<-EOF body included).
-e1doc() { E1_DOC=$1 bash "$e1sh" "${@:2}"; }
-names() { e1doc "$1" names; }
-show() { e1doc "$1" show "$2"; }
-script() { e1doc "$1" script; }
+# The page side is read here (the release's hack/docs-e1.sh reads command files only since v0.1.0-rc.25),
+# with the same rules as that script: names, show <name> and script. An empty line is not part of a block.
+e1doc_blocks() {
+  awk '
+    /^```/ {
+      if (name != "") { name = ""; next }
+      if (match($0, /^```(sh|bash) +e1=[a-z0-9-]+/)) {
+        s = substr($0, RSTART, RLENGTH); sub(/^.*e1=/, "", s); name = s
+        if (name in seen) { print "duplicate e1 block: " name > "/dev/stderr"; exit 2 }
+        seen[name] = 1; print name "\t"; next
+      }
+      next
+    }
+    name != "" && length($0) > 0 { print name "\t" $0 }
+  ' "$1"
+}
+names() { e1doc_blocks "$1" | cut -f1 | uniq; }
+show() {
+  local out
+  out=$(e1doc_blocks "$1" | awk -v n="$2" '{ p = index($0, "\t"); if (substr($0, 1, p - 1) == n && length($0) > p) print substr($0, p + 1) }')
+  [[ -n $out ]] || { echo "no e1 block named $2 in $1" >&2; return 1; }
+  printf '%s\n' "$out"
+}
+script() {
+  local list n
+  list=$(names "$1") || return
+  for n in $list; do
+    echo "# e1=$n"
+    show "$1" "$n"
+  done
+}
 
 # 1. The quickstart's e1 blocks.
 qnames=$(names "$quickstart") || { fail "reading the e1 blocks of $quickstart"; qnames=""; }
@@ -92,12 +119,15 @@ for n in $gnames; do
   show "$backup" "$n" >"$tmp/guide-$n.sh" || { fail "e1 block $n of the backup page is empty"; continue; }
   bash -n "$tmp/guide-$n.sh" || fail "e1 block $n of the backup page is not valid shell"
 done
+# Run by name: by test/e2e/backup-restore.sh (blk <name>) and, for the blocks that need two installs
+# (pipe-db, pipe-keys), by the drill test (test/drill/drill_test.go, block("<name>", ...)).
 gused=$(grep -v '^[[:space:]]*#' "$runner" | grep -oE '\bblk [a-z0-9-]+' | awk '{print $NF}' | sort -u)
+gdrill=$(grep -oE 'block\("[a-z0-9-]+"' "$drill" | sed -E 's/block\("//; s/"$//' | sort -u)
 for n in $gused; do
   grep -qx "$n" <<<"$gnames" || fail "$runner_rel at $ref runs e1 block '$n', which the backup page does not have"
 done
 for n in $gnames; do
-  grep -qx "$n" <<<"$gused" || fail "$runner_rel at $ref does not run e1 block '$n' of the backup page"
+  grep -qx "$n" <<<"$gused" || grep -qx "$n" <<<"$gdrill" || fail "$runner_rel at $ref (and $drill_rel) does not run e1 block '$n' of the backup page"
 done
 # The commands themselves: the page and the guide at the pinned release, block by block.
 if ! E1_FILE=$guide bash "$e1sh" script >"$tmp/guide.expected"; then

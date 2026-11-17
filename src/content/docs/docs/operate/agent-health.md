@@ -113,6 +113,17 @@ with a run waiting on the agent gets a note, and admins and owners see an item f
 inbox until it is resumed. Fix the cause, then choose **Resume agent** on the agent's page; the waiting
 runs start a new wait. An archived agent cannot be resumed and shows no item.
 
+## A run that repeats itself
+
+Koinon watches the harness's tool calls for four loops: the same call with the same result (4 times in a row), the
+same call failing each time (3 times), agent messages with no tool call between them (3 times) and two calls taking
+turns (6 steps). The first time one shows, `koinon-agentd` ends the turn and tells the agent once which pattern it
+saw, asks for a different approach or for a stop that says what blocks it, and warns that Koinon ends the run if it
+repeats. If the agent repeats, the run fails with the failure class `loop`, and the run is not retried. This is
+the one case where Koinon steps in on an agent's behavior; it saves the spend that a run's request and spend limits
+would otherwise spend. `koinon_agentd_loop_detections_total{action,pattern}` counts the nudges and the stops
+([Metrics](/docs/operate/metrics/)).
+
 ## New instructions for open tasks
 
 A new agent version normally applies from the next run, but a task keeps its session, so the agent

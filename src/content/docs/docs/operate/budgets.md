@@ -52,6 +52,17 @@ use of its limits (requests, spend and time), and names the limit a run stopped 
 At about 80% of the nearest limit the agent is told to wrap up: it is asked to say what it finished,
 what is left and the next step, and that reply is posted on the task when the run stops.
 
+**A run that hits its time limit continues.** When a run is canceled at its wall-clock limit, Koinon queues a
+continuation run of the same task and tells the agent, in a system message, that its previous run stopped at
+the time limit. The task keeps its sandbox and its timeline. A task gets at most 3 continuations (the
+template's `limits.run.maxContinuations`, 0 to 10; an admin can override it for one agent, and 0 turns
+continuation off). The request and spend limits are not continued: they mean the run loops or costs too
+much, which a new run would repeat. A continuation starts only while the task's spend, summed over all its
+runs, is below the **per-task spend cap**: the org default is $20.00 (four runs at the default run limit), and an
+agent's own cap wins. After the last continuation, or at the cap, the task goes to **blocked on you**
+(`input_required`) with the reason `continuation_limit`, `task_spend_cap` or `continuation_agent_unavailable`, and
+your message resumes it. The count is per task and is not reset by the message.
+
 Tokens are **reported, not limited**. A run's cost shows the tokens by type (input, cache read, cache
 write, output and reasoning), and no total of tokens ends a run. The old `maxTokens` setting in
 templates is ignored. The reasons are in

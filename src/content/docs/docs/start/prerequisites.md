@@ -238,8 +238,8 @@ on `runc`, where it does not apply.
 ## Koinon's images and chart
 
 Each release tag publishes the images and the chart to `ghcr.io/stateracloud/koinon`
-(`api`, `reconciler`, `agentd`, `flavors/opencode`, and the chart at
-`oci://ghcr.io/stateracloud/koinon/charts/koinon`). The packages are private while the repository is
-private, so log in to `ghcr.io` with a token that can read packages before you pull them. The
+(`api`, `reconciler`, `agentd`, `sandbox` (the OpenCode harness image), and the chart at
+`oci://ghcr.io/stateracloud/koinon/charts/koinon`). The packages are public and signed, so you pull them
+without credentials. The
 [quickstart](/docs/start/quickstart/#get-koinon) shows how to install from a release, and how to build the images
 yourself instead.

@@ -193,7 +193,7 @@ Create a GitHub App first. [GitHub App](/docs/operate/github-app/) lists the per
 2. Choose **Repo helper**, then **Next**. The template gives the agent read access to one
    repository, the right to propose pull requests and issue comments (each needs your approval), a
    30-minute cap on a run and a spend limit of $10.00 per day.
-3. Choose the **OpenCode** flavor, then **Next**. OpenCode is the only flavor in v0.1.
+3. Choose the **OpenCode** harness, then **Next**. OpenCode is the only harness in v0.1.
 4. Pick the repository in **Repository 1**, then **Next**.
 5. Press **Create draft**, then **Activate**.
 
@@ -306,10 +306,20 @@ missing from the ledger. Upgrade at a quiet time. Later rotations lose nothing w
 ### From a release
 
 A release tag (for example `v0.1.0-rc.2`) publishes `api`, `reconciler`, `agentd`
-and `flavors/opencode` to `ghcr.io/stateracloud/koinon`, and the chart to
+and `sandbox` (the OpenCode harness image) to `ghcr.io/stateracloud/koinon`, and the chart to
 `oci://ghcr.io/stateracloud/koinon/charts/koinon`, all at the version of the tag without the `v`. The
-packages are private while the repository is private. Log in with a GitHub token that has
-`read:packages`. After you create the namespace in step 2, give the cluster a pull Secret for `ghcr.io`:
+packages are public and the releases are signed, so you can pull them without credentials. To check a
+signature (cosign v3, tags without the `v`):
+
+```sh
+cosign verify ghcr.io/stateracloud/koinon/api:0.1.0-rc.25 \
+  --certificate-identity-regexp '^https://github.com/stateracloud/koinon/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Only a mirror or a private
+copy needs a pull Secret. After you create the namespace in step 2, give the cluster one for that registry
+(the example uses `ghcr.io`):
 
 ```sh
 echo "$GITHUB_TOKEN" | helm registry login ghcr.io -u "$GITHUB_USER" --password-stdin
@@ -349,13 +359,13 @@ for name in api reconciler agentd; do
     ko build --bare --tags v0.1.0 ./cmd/koinon-$name
 done
 
-# 3. The OpenCode flavor image: registry.example.com/koinon/flavors/opencode:v0.1.0.
-docker buildx build --push --build-context common=flavors/common \
-  --tag registry.example.com/koinon/flavors/opencode:v0.1.0 flavors/opencode
+# 3. The OpenCode harness image: registry.example.com/koinon/sandbox:v0.1.0.
+docker buildx build --push --build-context common=harnesses/common \
+  --tag registry.example.com/koinon/sandbox:v0.1.0 harnesses/opencode
 ```
 
 Without `-tags=webui`, `koinon-api` serves no UI. Without `--bare` and one repository per image, `ko` gives the images
-other names than the chart expects. The chart takes the flavor image tag from `image.tag`. The images
+other names than the chart expects. The chart takes the harness image tag from `image.tag`. The images
 have to be pullable by the cluster; add `global.imagePullSecrets` for a private registry (see
 [Private registries and mirrors](/docs/operate/private-registries/)).
 

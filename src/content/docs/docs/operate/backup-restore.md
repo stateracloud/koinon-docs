@@ -22,8 +22,14 @@ backups together and keep them apart from each other's storage.
 
 This page is the manual procedure for the `cnpg` and `external` database modes. It uses exactly the
 commands an automated backup job would run (`pg_dump --format=custom` and `keys export`), and
-Koinon's nightly end-to-end test on kind runs these blocks as written, so they are known to work. The
-examples use the release name `koinon` and the namespace `koinon`; replace them with yours.
+Koinon's end-to-end test and its automated restore drill on kind run these blocks as written, so they
+are known to work.
+
+Every block sets two variables itself, so a block runs on its own: `NS` is the namespace (default
+`koinon`) and `REL` is the Helm release (default `koinon`). Export them in your shell to act on another
+install. The blocks name the objects `<release>-api`, `<release>-pg`, `<release>-kek` and so on, which is
+what the chart makes when the release name contains `koinon`, you set no `fullnameOverride` and no
+`secrets.kek.existingSecret`. `helm install` prints the real names.
 
 A restore into the same install is below. For a different cluster, install the same chart version
 first (see [Restore into a new install](#restore-into-a-new-install)).
@@ -35,7 +41,20 @@ first (see [Restore into a new install](#restore-into-a-new-install)).
 Export the key set from the running API. The export is a Secret manifest without a namespace:
 
 ```sh e1=backup-keys
-kubectl -n koinon exec deploy/koinon-api -- koinon-api keys export > koinon-kek-backup.yaml
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+kubectl -n "$NS" exec deploy/"$REL"-api -- koinon-api keys export > koinon-kek-backup.yaml
+```
+
+Write down which keys the install holds. `keys status` prints only key IDs and fingerprints, no key
+material, so this file can sit beside the backup. After a restore, `keys compare` reads it to check
+that the restored key set holds the same keys:
+
+```sh e1=note-keys
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+# Only IDs and fingerprints: no key material. Keep the file with the backup; compare-keys reads it after the restore.
+kubectl -n "$NS" exec deploy/"$REL"-api -- koinon-api keys status > koinon-keys-status.txt
 ```
 
 Check that it holds the active key. This reads the active key's fingerprint from `keys status` and
@@ -43,7 +62,9 @@ looks for it in the export. Do it after each export, because a `keys add` and `k
 the export makes a backup that cannot open what was sealed since:
 
 ```sh e1=check-keys
-fp=$(kubectl -n koinon exec deploy/koinon-api -- koinon-api keys status | awk '$2 == "active" { print $NF }')
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+fp=$(kubectl -n "$NS" exec deploy/"$REL"-api -- koinon-api keys status | awk '$2 == "active" { print $NF }')
 test -n "$fp"
 grep -q "fingerprint $fp" koinon-kek-backup.yaml || { echo "the backup does not hold the active key $fp" >&2; false; }
 ```
@@ -60,8 +81,10 @@ database from its primary pod. The database is `postgres.cnpg.database` (default
 covers every schema, including `dbos`:
 
 ```sh e1=backup-db
-PRIMARY=$(kubectl -n koinon get pod -l cnpg.io/cluster=koinon-pg,cnpg.io/instanceRole=primary -o name)
-kubectl -n koinon exec "$PRIMARY" -c postgres -- pg_dump --format=custom --dbname=koinon > koinon.dump
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+PRIMARY=$(kubectl -n "$NS" get pod -l cnpg.io/cluster=$REL-pg,cnpg.io/instanceRole=primary -o name)
+kubectl -n "$NS" exec "$PRIMARY" -c postgres -- pg_dump --format=custom --dbname=koinon > koinon.dump
 ```
 
 **external mode.** Take your provider's snapshot, or run `pg_dump --format=custom` as the migration
@@ -74,8 +97,10 @@ Check that the dump can be read. `pg_restore --list` reads the whole archive's t
 fails on a truncated file:
 
 ```sh e1=verify-dump
-PRIMARY=$(kubectl -n koinon get pod -l cnpg.io/cluster=koinon-pg,cnpg.io/instanceRole=primary -o name)
-kubectl -n koinon exec -i "$PRIMARY" -c postgres -- pg_restore --list < koinon.dump > /dev/null
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+PRIMARY=$(kubectl -n "$NS" get pod -l cnpg.io/cluster=$REL-pg,cnpg.io/instanceRole=primary -o name)
+kubectl -n "$NS" exec -i "$PRIMARY" -c postgres -- pg_restore --list < koinon.dump > /dev/null
 ```
 
 ### 3. The install mark
@@ -105,10 +130,12 @@ OpenShell stay up. Sandboxes keep running while Koinon is stopped, but no run ma
 schedule fires.
 
 ```sh e1=stop
-kubectl -n koinon scale deployment/koinon-agentd --replicas=0
-kubectl -n koinon wait --for=delete pod -l app.kubernetes.io/instance=koinon,app.kubernetes.io/component=agentd --timeout=10m
-kubectl -n koinon scale deployment/koinon-reconciler deployment/koinon-api --replicas=0
-kubectl -n koinon wait --for=delete pod -l 'app.kubernetes.io/instance=koinon,app.kubernetes.io/component in (api,reconciler)' --timeout=5m
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+kubectl -n "$NS" scale deployment/"$REL"-agentd --replicas=0
+kubectl -n "$NS" wait --for=delete pod -l app.kubernetes.io/instance=$REL,app.kubernetes.io/component=agentd --timeout=10m
+kubectl -n "$NS" scale deployment/"$REL"-reconciler deployment/"$REL"-api --replicas=0
+kubectl -n "$NS" wait --for=delete pod -l "app.kubernetes.io/instance=$REL,app.kubernetes.io/component in (api,reconciler)" --timeout=5m
 ```
 
 If `wait` prints "no matching resources found", the pods were already gone.
@@ -130,7 +157,9 @@ you have looked at it. The hold is one environment variable on the three Deploym
 scaled to 0, so nothing restarts):
 
 ```sh e1=hold
-kubectl -n koinon set env deployment/koinon-api deployment/koinon-reconciler deployment/koinon-agentd KOINON_RESTORE_HOLD=true
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+kubectl -n "$NS" set env deployment/"$REL"-api deployment/"$REL"-reconciler deployment/"$REL"-agentd KOINON_RESTORE_HOLD=true
 ```
 
 With Helm or GitOps, skip this command: the hold goes in with the chart value in step 4, after the
@@ -144,10 +173,12 @@ problem instead of leaving a half-restored database.
 **cnpg mode:**
 
 ```sh e1=restore-db
-PRIMARY=$(kubectl -n koinon get pod -l cnpg.io/cluster=koinon-pg,cnpg.io/instanceRole=primary -o name)
-kubectl -n koinon exec "$PRIMARY" -c postgres -- psql --dbname=koinon -v ON_ERROR_STOP=1 \
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+PRIMARY=$(kubectl -n "$NS" get pod -l cnpg.io/cluster=$REL-pg,cnpg.io/instanceRole=primary -o name)
+kubectl -n "$NS" exec "$PRIMARY" -c postgres -- psql --dbname=koinon -v ON_ERROR_STOP=1 \
   -c 'DROP SCHEMA IF EXISTS dbos CASCADE' -c 'DROP SCHEMA public CASCADE' -c 'CREATE SCHEMA public AUTHORIZATION pg_database_owner' -c 'GRANT USAGE ON SCHEMA public TO PUBLIC'
-kubectl -n koinon exec -i "$PRIMARY" -c postgres -- pg_restore --dbname=koinon --exit-on-error < koinon.dump
+kubectl -n "$NS" exec -i "$PRIMARY" -c postgres -- pg_restore --dbname=koinon --exit-on-error < koinon.dump
 ```
 
 **external mode:** restore your provider's snapshot, or run the same two steps with `psql` and
@@ -160,10 +191,75 @@ with the dump, so a restored database and a restored key Secret match in either 
 ### 3. Restore the keys
 
 If the Secret is still there and is the one from the backup, there is nothing to do. If it is gone
-or newer than the backup, restore the backup:
+or newer than the backup, restore the backup. The KEK Secret is guarded (see
+[Secret keys](/docs/operate/secret-keys/#the-key-secret-guard)): `kubectl apply` cannot replace one that
+exists, and a new install makes its own first key on its first start. So the block checks for the Secret.
+If it exists, the block starts one `koinon-api` pod and runs `keys import --yes`, which merges the backup into
+it: it adds the backup's keys, makes the backup's active key active and removes none. It refuses a key that
+`keys retire` removed (`--allow-retired` adds it, inactive; it never becomes active). If the Secret is gone,
+the block creates it with `kubectl apply`. The import needs a database to read the retire events; without
+`--database-url` it warns that retired keys cannot be checked.
 
 ```sh e1=restore-keys
-kubectl -n koinon apply -f koinon-kek-backup.yaml
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+# The KEK Secret is guarded: kubectl cannot replace one that exists (admission refuses it), so a Secret that
+# is there (the usual case: a new install made its own first KEK) is merged with the backup by koinon-api itself,
+# which needs one pod: keys import adds the backup's KEKs, makes its active KEK active and removes none. It
+# refuses a KEK that keys retire removed (--allow-retired overrides, inactive). A Secret that is gone is created with apply.
+if kubectl -n "$NS" get secret/"$REL"-kek > /dev/null 2>&1; then
+  kubectl -n "$NS" scale deployment/"$REL"-api --replicas=1
+  kubectl -n "$NS" rollout status deployment/"$REL"-api --timeout=5m
+  kubectl -n "$NS" exec -i deploy/"$REL"-api -- koinon-api keys import --yes < koinon-kek-backup.yaml
+  kubectl -n "$NS" scale deployment/"$REL"-api --replicas=0
+  kubectl -n "$NS" wait --for=delete pod -l app.kubernetes.io/instance=$REL,app.kubernetes.io/component=api --timeout=5m
+else
+  kubectl -n "$NS" apply -f koinon-kek-backup.yaml
+fi
+```
+
+**Copy from a running install.** To fill a second install (a drill, a staging copy, a move to a new
+namespace) from a live one without files, stream the source into the target. Both installs must be
+up at once, and both variables of the source are required: `SRC_NS` and `SRC_REL`. The block refuses
+a source that is the target, because it would wipe the database before it reads it. Run it after the
+stop and hold steps on the target; the source keeps running and its database is only read:
+
+```sh e1=pipe-db
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+SRC_NS=${SRC_NS:?set SRC_NS to the source install's namespace}
+SRC_REL=${SRC_REL:?set SRC_REL to the source install's release}
+# Run it after stop and hold. The source keeps running; its database is read, never changed.
+test "$SRC_NS/$SRC_REL" != "$NS/$REL" || { echo "the source is the target: it would be wiped before it is read" >&2; false; }
+SRC_PRIMARY=$(kubectl -n "$SRC_NS" get pod -l cnpg.io/cluster=$SRC_REL-pg,cnpg.io/instanceRole=primary -o name)
+PRIMARY=$(kubectl -n "$NS" get pod -l cnpg.io/cluster=$REL-pg,cnpg.io/instanceRole=primary -o name)
+test -n "$SRC_PRIMARY" && test -n "$PRIMARY"
+kubectl -n "$NS" exec "$PRIMARY" -c postgres -- psql --dbname=koinon -v ON_ERROR_STOP=1 \
+  -c 'DROP SCHEMA IF EXISTS dbos CASCADE' -c 'DROP SCHEMA public CASCADE' -c 'CREATE SCHEMA public AUTHORIZATION pg_database_owner' -c 'GRANT USAGE ON SCHEMA public TO PUBLIC'
+kubectl -n "$SRC_NS" exec "$SRC_PRIMARY" -c postgres -- pg_dump --format=custom --dbname=koinon | kubectl -n "$NS" exec -i "$PRIMARY" -c postgres -- pg_restore --dbname=koinon --exit-on-error
+```
+
+Then copy the keys the same way. This needs one `koinon-api` pod of the source. The target's
+`koinon-api` runs only for the import. If the target has no key Secret yet, the Secret is created
+under the source's name, so give the target the same release name then:
+
+```sh e1=pipe-keys
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+SRC_NS=${SRC_NS:?set SRC_NS to the source install's namespace}
+SRC_REL=${SRC_REL:?set SRC_REL to the source install's release}
+# Needs one koinon-api pod of the source. The target's koinon-api runs only for the import, as in restore-keys.
+# Without a KEK Secret on the target, apply creates the Secret under the source's name: use the same release name then.
+kubectl -n "$SRC_NS" exec deploy/"$SRC_REL"-api -- koinon-api keys status > /dev/null
+if kubectl -n "$NS" get secret/"$REL"-kek > /dev/null 2>&1; then
+  kubectl -n "$NS" scale deployment/"$REL"-api --replicas=1
+  kubectl -n "$NS" rollout status deployment/"$REL"-api --timeout=5m
+  kubectl -n "$SRC_NS" exec deploy/"$SRC_REL"-api -- koinon-api keys export | kubectl -n "$NS" exec -i deploy/"$REL"-api -- koinon-api keys import --yes
+  kubectl -n "$NS" scale deployment/"$REL"-api --replicas=0
+  kubectl -n "$NS" wait --for=delete pod -l app.kubernetes.io/instance=$REL,app.kubernetes.io/component=api --timeout=5m
+else
+  kubectl -n "$SRC_NS" exec deploy/"$SRC_REL"-api -- koinon-api keys export | kubectl -n "$NS" apply -f -
+fi
 ```
 
 koinon-api refuses to start without the Secret and never makes a new key when the database already
@@ -177,10 +273,12 @@ The default is one each. Start the API and reconciler first, then agentd. All th
 "restore-hold" and report `koinon_restore_hold 1` on `/metrics`:
 
 ```sh e1=start
-kubectl -n koinon scale deployment/koinon-api deployment/koinon-reconciler --replicas=1
-kubectl -n koinon rollout status deployment/koinon-api deployment/koinon-reconciler --timeout=5m
-kubectl -n koinon scale deployment/koinon-agentd --replicas=1
-kubectl -n koinon rollout status deployment/koinon-agentd --timeout=5m
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+kubectl -n "$NS" scale deployment/"$REL"-api deployment/"$REL"-reconciler --replicas=1
+kubectl -n "$NS" rollout status deployment/"$REL"-api deployment/"$REL"-reconciler --timeout=5m
+kubectl -n "$NS" scale deployment/"$REL"-agentd --replicas=1
+kubectl -n "$NS" rollout status deployment/"$REL"-agentd --timeout=5m
 ```
 
 With Helm or GitOps, do not run `kubectl scale` or the `set env` command from step 1. Set the chart
@@ -201,7 +299,9 @@ since deleted. Rebuild it from the bucket once agentd is up (it is a no-op for a
 checkpoints):
 
 ```sh e1=resync
-kubectl -n koinon exec deploy/koinon-api -- koinon-api checkpoints resync --all
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+kubectl -n "$NS" exec deploy/"$REL"-api -- koinon-api checkpoints resync --all
 ```
 
 [After a database restore](/docs/use/home-checkpoints/#after-a-database-restore) says what it changes.
@@ -216,13 +316,27 @@ The install is held, so you can look at it before it acts.
 2. `kubectl -n koinon exec deploy/koinon-api -- koinon-api keys status` lists the keys, marks the
    active one and prints no warning about a missing key or a fingerprint that differs.
 
+Check that the restored key set holds every key that the source listed, with the same fingerprints, and
+the same active key. It reads the file that the `note-keys` block wrote and exits 1 when a key is
+missing or differs. It needs one `koinon-api` pod, so run it while the install is up:
+
+```sh e1=compare-keys
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+# Every KEK the source listed is here with the same fingerprint, and the active KEK is the same (exits 1 otherwise).
+# It needs one koinon-api pod, so run it while the install is up, or after restore-keys scales it for keys import.
+kubectl -n "$NS" exec -i deploy/"$REL"-api -- koinon-api keys compare < koinon-keys-status.txt
+```
+
 Open every stored credential with the restored keys. `keys verify` reads each sealed value (provider
 and cost keys, connection secrets, MCP and trace credentials, home-repository passwords), opens it
 and prints one line for each that does not. It changes nothing and writes no audit event, and it
 does not print a value:
 
 ```sh e1=verify-keys
-kubectl -n koinon exec deploy/koinon-api -- koinon-api keys verify
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+kubectl -n "$NS" exec deploy/"$REL"-api -- koinon-api keys verify
 ```
 
 It exits 1 when a value does not open. `unknown_kek` means the key backup lacks the key that sealed
@@ -243,7 +357,8 @@ kubectl -n koinon exec deploy/koinon-api -- koinon-api org-limits set --org acme
 ```
 
 `--trigger-concurrency` and `--trigger-rate-per-minute` bound the org's share of the trigger queue
-the same way. Every change is audited as `org.run_limits.set` (actor `cli`). Raise the cap again
+the same way, and `--sandbox-creations-per-minute` bounds the sandboxes the reconciler creates or starts for
+the org each minute (default 10; more wait, and are not refused). Every change is audited as `org.run_limits.set` (actor `cli`). Raise the cap again
 when the backlog has drained.
 
 ## Release
@@ -254,12 +369,77 @@ again on their next due time (a schedule that came due while the install was dow
 claims runs and takes over the expired leases, and the reconciler converges the sandboxes.
 
 ```sh e1=release
-kubectl -n koinon set env deployment/koinon-api deployment/koinon-reconciler deployment/koinon-agentd KOINON_RESTORE_HOLD-
-kubectl -n koinon rollout status deployment/koinon-api deployment/koinon-reconciler deployment/koinon-agentd --timeout=5m
+NS=${NS:-koinon}
+REL=${REL:-koinon}
+kubectl -n "$NS" set env deployment/"$REL"-api deployment/"$REL"-reconciler deployment/"$REL"-agentd KOINON_RESTORE_HOLD-
+kubectl -n "$NS" rollout status deployment/"$REL"-api deployment/"$REL"-reconciler deployment/"$REL"-agentd --timeout=5m
 ```
 
 Start a run to prove that a stored provider key is decrypted. If you held the install with the chart
-value, set `restoreHold: false` and upgrade instead.
+value, set `restoreHold: false` and upgrade instead (`helm upgrade <release> <chart> --reuse-values --set
+restoreHold=false --wait`). With `gateway.mode: standalone` a held install runs a gateway that is ready
+but refuses every request, and `kubectl set env` does not change it, so release a chart-held install
+with the upgrade.
+
+### What the release does to the install
+
+The first start without the hold runs a release step in koinon-api, once for each hold. It:
+
+- **Signs everyone out.** It revokes every session and records `restore.sessions_revoked` with the count.
+  A session revoked after the backup would otherwise be valid again. Users sign in again. API tokens are
+  not revoked.
+- **Applies the importer's removals only when you accept them.** While held, the importer changes
+  nothing: it logs `held: would <action> <kind> <name>` for each change, records one Kubernetes Event per
+  Secret (reason `HeldNotApplied`) and counts them in `koinon_declarative_held_changes`. A restore into
+  a fresh namespace has none of the source's declarative Secrets (providers, MCP servers, connections), so
+  the release would remove each of them. Apply those Secrets, or set `restore.acceptImporterDeletions: true`
+  for this release and remove it afterwards. Without it the removals wait: the install runs, nothing is
+  removed, and `koinon_restore_release_pending` reads 1 (the alert `KoinonRestoreReleasePending` fires after 15
+  minutes). A value left set accepts every removal that waits at the next start.
+- **Records the release** as `restore.release` in the [install audit](/docs/operate/audit/), with the list of
+  removals and whether they were accepted.
+
+Under Helm, the Job `restore-release-check` runs before `helm upgrade` changes any Deployment while
+`restoreHold` is false. When a release is pending and its plan holds a removal that
+`restore.acceptImporterDeletions` does not accept, the Job fails and the install stays held. It does not
+run with `--no-hooks` or a plain `kubectl apply`, and under Argo CD it only previews. The importer holds the
+removals in every case.
+
+See what the release will do before you start it. The command reads the database and the declarative
+Secrets and calls nothing outward, so it is safe on a held install:
+
+```sh
+kubectl -n koinon exec deploy/koinon-api -- koinon-api restore status
+```
+
+It prints the binding state (below), the tokens and sessions this install refuses, every outward target
+(model providers, MCP servers, code-host connections, trace destinations) with its enabled or disabled
+state, the importer's plan, the API tokens that were active at the time of the dump, and what a release
+starts for each org: the schedule fires of the first tick, the pending workflows, the runs and the run
+limits that apply. `--json` prints the same as JSON. A platform admin can also switch off any
+outward target, with the switch on its page in the console or the declarative field `disabled: true`; that
+works while held, and enabling a target is refused while held. API tokens that were active at the dump
+may have been revoked since: revoke each one that was revoked or reported lost since the backup.
+
+### The install binding
+
+The database records which install it belongs to: the hash of the install mark, and that install's
+public URL and checkpoint bucket. At start each component compares its own mark with the record:
+
+| State | Meaning | Effect |
+| --- | --- | --- |
+| `same` | The record holds this install's mark. | Normal. |
+| `copy` | The record holds another mark, or none. This is a restored copy, or a live install that lost its mark Secret. | API tokens and sessions that another install issued are refused (`issued by another install (restored copy)`, counted in `koinon_auth_quarantined_total`). The release step still runs once. |
+| `unknown` | No record yet. | A held start writes a record with no mark, so the install becomes a `copy`. An unheld start (the first upgrade of an existing install) claims it. |
+
+`koinon_install_binding{state}` shows the state. Users sign in again on a copy; their sessions are bound to
+the copy. A platform admin can re-enable one refused API token (`RebindToken` in the token API) and the
+audit records it as `token.rebind`. Org owners and org admins cannot. Automation against a copy needs its
+own tokens.
+
+A **live install that lost its mark Secret** is a `copy` from its next start: it refuses its own tokens and
+sessions, runs the release step once (everyone is signed out) and its importer queues its removals as
+waiting. Apply the mark backup (step 3 of Back up) to get the old mark back, then restart the Deployments.
 
 ## Restore into a new install
 
@@ -283,6 +463,22 @@ kubectl -n koinon apply -f koinon-install-mark-backup.json
 If you restore a **copy next to the live install** (a drill), do not apply it. The copy keeps the
 mark its own chart install made, and then it cannot touch the live install's objects. With the live
 mark, the copy would own them and could stop and delete them.
+
+A copy also still points at its source's checkpoint bucket unless you change `checkpoints.s3`. Set
+`checkpoints.readOnly: true` on the copy before its first start. Then `koinon-agentd` restores homes from the
+bucket and lists its snapshots, but writes no snapshot, applies no retention and deletes no repository, and
+the kopia repository is opened read-only. Without it the copy writes into the source's repositories and
+prunes them. Leave it `false` on a live install and on a replacement that owns the bucket. The chart's
+notes warn when `restoreHold` is true, checkpoints are on and `readOnly` is false. Give the copy its own
+public URL and OIDC redirect URL too, so a sign-in does not go to the source. `restore status` prints the
+recorded targets.
+
+If nobody can sign in to the restored install, see [Recover admin access](/docs/operate/recover-admin-access/).
+
+For a restore into a fresh namespace with its own OpenShell gateway, the chart has a preset,
+`values-restore.yaml`: it sets `restoreHold: true` and a gateway ID of its own (`koinon-restore`). Pass it first
+and your own values second, and give the new gateway's `openshell.address` and client TLS Secret, never the
+source's: two installs on one gateway own each other's objects. Release it with `helm upgrade --set restoreHold=false`.
 
 Use the same `postgres.mode` as the install the dump came from; a `cnpg` install cannot be pointed at
 a database restored somewhere else.
@@ -326,9 +522,9 @@ The condition is that the first gauge is 0 for each of `kind="sandbox"`, `"provi
 the second is 0. A stale value of 1 means the last count of the gateway failed (or none has run yet), so the
 zeros may be old. The count runs at most once per resync interval, so after a change wait for one interval before you read it. The count lists the gateway, so it also covers agents that a pass held back or failed
 on, and archived (`retained`) sandboxes. The reconciler claims a retained sandbox only when it recreates it,
-and an archived agent is not reconciled. Unarchive such an agent on the live install first and wait until it
-is recreated with the mark (you can archive it again after that). Delete its sandbox on the gateway only when
-you do not need its home volume: that data is gone. If the gauge is not 0, wait: runs that hold an agent finish, and the next passes recreate those sandboxes. To go faster,
+and an archived agent is not reconciled. Archiving is one way: an archived agent does not come back, so its retained sandbox stays unclaimed.
+If you need the second gauge at 0 as well, copy out the home you still need, then delete that sandbox on the
+gateway: its home volume is gone with it. If the gauge is not 0, wait: runs that hold an agent finish, and the next passes recreate those sandboxes. To go faster,
 raise `reconciler.maxRecreatesPerPass` (default 4) with a `helm upgrade`, or end the runs that hold
 the agents. Do not delete the sandboxes on the gateway by hand to speed it up: the reconciler recreates
 them, but only on a pass when no run holds the agent, and the home volume is replaced.
@@ -346,10 +542,10 @@ never lists an object that carries another install's mark.
 
 | Reason | Meaning | What to do |
 |---|---|---|
-| `pending-claim` | An active agent's object, or the profile of a configured flavor. The next reconcile claims it. | Nothing; wait for the reconcile. |
-| `draft-agent` | A draft agent's object, or a flavor profile only draft and archived agents use, that the reconciler claims on its next pass. | Nothing, unless it is still listed after a pass. Then one of these holds: the agent's key Secret no longer matches its recorded key, or the agent has no key; the flavor is not rendered by this install; or ownership is off (no install mark, so `koinon_openshell_unmarked_objects_stale` reads 1). Fix that cause, or activate or archive the agent. |
-| `archived-agent` | A flavor profile only archived agents use (the org pass marks it), or an archived agent's object that its cleanup removes. | Nothing; archiving keeps the org's data. |
-| `waits-for-agent` | The reconciler cannot claim it while the agent keeps its status: a draft agent's sandbox in any state other than pending or deleted, with the providers and the GitHub profile it attaches (claimed when the agent is activated; when it is archived, the sandbox is removed, or kept as a retained sandbox under the `retain` home policy), and an archived agent's retained sandbox (claimed when the agent is unarchived). | Activate or archive the draft agent. Unarchive the archived agent, or delete its retained sandbox by hand once its home is no longer wanted. |
+| `pending-claim` | An active agent's object, or the profile of a configured harness. The next reconcile claims it. | Nothing; wait for the reconcile. |
+| `draft-agent` | A draft agent's object, or a harness profile only draft and archived agents use, that the reconciler claims on its next pass. | Nothing, unless it is still listed after a pass. Then one of these holds: the agent's key Secret no longer matches its recorded key, or the agent has no key; the harness is not rendered by this install; or ownership is off (no install mark, so `koinon_openshell_unmarked_objects_stale` reads 1). Fix that cause, or activate or archive the agent. |
+| `archived-agent` | A harness profile only archived agents use (the org pass marks it), or an archived agent's object that its cleanup removes. | Nothing; archiving keeps the org's data. |
+| `waits-for-agent` | The reconciler cannot claim it while the agent keeps its status: a draft agent's sandbox in any state other than pending or deleted, with the providers and the GitHub profile it attaches (claimed when the agent is activated; when it is archived, the sandbox is removed, or kept as a retained sandbox under the `retain` home policy), and an archived agent's retained sandbox (nothing claims it: an archived agent stays archived). | Activate or archive the draft agent. For the archived agent, copy out the home you still need, then delete its retained sandbox by hand. |
 | `org-not-in-db` | In a workspace that no org of this database owns (a deleted org counts). Nothing of this install claims it. On a gateway shared with another install, the line can belong to that install, which has not claimed its objects yet (its workspace carries no mark yet). | Delete it by hand (below), but not on a shared gateway before you check with the other install; it lists the object under one of its own reasons. |
 | `not-reconciler-made` | Not made by the reconciler, or this database has no record of it. Nothing claims it. | Check who made it; delete it only if you are sure it is yours. |
 
@@ -360,7 +556,7 @@ The `pending-claim`, `draft-agent` and `archived-agent` lines clear within a few
 no object without a known owner is left.
 
 A restored copy of the same database sees those agents in the same status and does not claim their
-objects either. Do not activate or unarchive agents on the copy. Take the drill's backup only after
+objects either. Do not activate agents on the copy. Take the drill's backup only after
 `koinon_openshell_unmarked_objects` reads 0 for every kind and `koinon_openshell_unmarked_objects_stale`
 reads 0. Do not return an agent to draft or archive it on the live install until the drill is over. An
 agent that was active in the backup and is draft or archived on the live install is hidden as
@@ -382,7 +578,10 @@ need the key backup beside them.
 Not covered here: the checkpoint bucket's own durability (use your storage provider's versioning or
 replication), and a standalone database mode, which has its own backup set
 ([ADR 0076](https://github.com/stateracloud/koinon/blob/main/docs/adr/0076-database-modes.md)).
-Koinon records the time a restore took and the data it lost in the full restore drill it runs before
-each release
-([ADR 0085](https://github.com/stateracloud/koinon/blob/main/docs/adr/0085-upgrade-compatibility-and-recovery-policy.md));
-there are no targets yet.
+Koinon runs an automated restore drill before each release candidate
+([ADR 0109](https://github.com/stateracloud/koinon/blob/main/docs/adr/0109-automated-restore-drill.md)). It
+seeds a source install, backs up and restores with the blocks on this page into a fresh namespace with its own
+gateway, runs the held checks (nothing fires, no run is claimed, `keys verify` passes, the marks differ),
+releases it and runs the released checks. It records the restore time (RTO) and the data lost (RPO), and
+([ADR 0085](https://github.com/stateracloud/koinon/blob/main/docs/adr/0085-upgrade-compatibility-and-recovery-policy.md))
+sets no target for either yet.

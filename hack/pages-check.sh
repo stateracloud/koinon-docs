@@ -104,24 +104,19 @@ done <"$tmp/blocks.list"
 [[ $i -gt 0 ]] || fail "no chart-values blocks found"
 [[ $failures -eq $before ]] && ok "$i chart-values blocks checked with helm lint and template"
 
-# 2. Declarative Secrets shown in the pages. The tests read fixed paths, so run them in a copy.
-work=$tmp/work
-mkdir -p "$work"
-# Copy only what the Go test needs: no .git, node_modules, build output or web/ and docs/ trees.
-(cd "$src" && tar --exclude=.git --exclude=node_modules --exclude=dist --exclude=./web --exclude=./docs \
-  --exclude=./.claude --exclude=./.codegraph -cf - .) | tar -xf - -C "$work"
-site=$work/docs/site/src/content/docs
-mkdir -p "$site/guides"
-cp "$quickstart" "$site/quickstart.md"
-cp "$models" "$site/guides/models.md"
-cp "$mcp" "$site/guides/mcp-servers.md"
+# 2. Declarative Secrets shown in the pages. The release's tests (internal/declarative/pages_test.go) read
+# every page under KOINON_PAGES_DIR, so they run in the release tree as it is. This repository owns which page
+# carries which block, and asserts that here.
+grep -q '^```yaml model-provider$' "$quickstart" || fail "the quickstart has no yaml model-provider block"
+grep -q '^```yaml model-provider$' "$models" || fail "the models page has no yaml model-provider block"
+grep -q '^```yaml mcp-server$' "$mcp" || fail "the MCP servers page has no yaml mcp-server block"
 tests="TestDocumentedSecretsParse TestDocumentedMCPServerSecretsParse"
-if [[ ! -f $src/internal/declarative/docs_test.go ]]; then
-  fail "internal/declarative/docs_test.go does not exist at $ref: the main repository no longer has the test, so check 2 needs a new source"
+if [[ ! -f $src/internal/declarative/pages_test.go ]]; then
+  fail "internal/declarative/pages_test.go does not exist at $ref: the main repository no longer has the test, so check 2 needs a new source"
 else
-  (cd "$work" && go test -count=1 -v -run '^(TestDocumentedSecretsParse|TestDocumentedMCPServerSecretsParse)$' ./internal/declarative) >"$tmp/secrets.out" 2>&1 || {
+  (cd "$src" && KOINON_PAGES_DIR="$pages" go test -count=1 -v -run '^(TestDocumentedSecretsParse|TestDocumentedMCPServerSecretsParse)$' ./internal/declarative) >"$tmp/secrets.out" 2>&1 || {
     cat "$tmp/secrets.out" >&2
-    fail "a model-provider or mcp-server manifest does not parse with the code at $ref (internal/declarative/docs_test.go)"
+    fail "a model-provider or mcp-server manifest does not parse with the code at $ref (internal/declarative/pages_test.go)"
   }
   # Only a PASS line counts. The ok line is printed only when every test passed.
   passed=1
