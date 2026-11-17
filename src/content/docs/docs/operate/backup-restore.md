@@ -208,7 +208,7 @@ the block creates it with `kubectl apply`. The import needs a database to read t
 **With Helm or GitOps, hold the install before you run this block.** After step 2, and before step 3, run
 `helm upgrade <release> <chart> --version <installed-version> -n <namespace> --reuse-values --set restoreHold=true --wait`
 (or set `restoreHold: true` in the values your GitOps controller applies, and sync). **If the key Secret is gone,
-first run `kubectl apply -f koinon-kek-backup.yaml`** (no pod is needed), then the upgrade: `koinon-api` refuses to
+first run `kubectl -n <namespace> apply -f koinon-kek-backup.yaml`** (no pod is needed), then the upgrade: `koinon-api` refuses to
 start without the Secret, so `--wait` would fail. If the Secret exists, upgrade first, then run the block. The block below starts one `koinon-api` pod when the key Secret exists,
 and that pod must start held. With the `kubectl set env` way of step 1, the variable is already on the Deployment.
 
@@ -293,7 +293,7 @@ kubectl -n "$NS" scale deployment/"$REL"-agentd --replicas=1
 kubectl -n "$NS" rollout status deployment/"$REL"-agentd --timeout=5m
 ```
 
-With Helm or GitOps, do not run `kubectl scale` or the `set env` command from step 1. The chart value
+With Helm or GitOps, do not run the start block above or the `set env` command from step 1 (you still need step 1's scale-down). The chart value
 `restoreHold: true` is already set (before step 3), so the three Deployments start held. The chart sets the
 replica counts, so the hold upgrade of step 3 brought them back and the key block then scaled the API to 0:
 **run the same hold upgrade again** (with `--wait`) to start all three, still held. Do not set the hold before
@@ -301,6 +301,11 @@ step 2 ends: an upgrade earlier would start them against a database that step 2 
 self-heal would undo a `kubectl scale`. Set it back to `false` to release. Do
 not mix the two ways: a variable set with `kubectl set env` is not in the chart, so a Helm upgrade
 neither adds nor removes it.
+
+GitOps: sync again (Argo CD: a manual sync; Flux: `flux reconcile helmrelease <name> --force`). Turn auto-sync and
+self-heal back on only after the release. With Helm 3 the upgrade restores the replica count after a `kubectl scale`;
+with Helm 4 server-side apply, check that the Deployments have their replicas after the upgrade
+(`kubectl -n <namespace> get deploy`).
 
 Starting the API again is also what makes it read the restored install ID. Ready means the process
 is up and its schema is supported; a held install is Ready and does nothing.
@@ -332,7 +337,7 @@ The install is held, so you can look at it before it acts.
 
 Check that the restored key set holds every key that the source listed, with the same fingerprints, and
 the same active key. It reads the file that the `note-keys` block wrote and exits 1 when a key is
-missing or differs. It needs one `koinon-api` pod, so run it while the install is up:
+missing or differs. It needs one `koinon-api` pod, so run it after step 4 (Start), while the install is up (the key block scales the API back to 0):
 
 ```sh e1=compare-keys
 NS=${NS:-koinon}
