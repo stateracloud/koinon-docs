@@ -125,6 +125,10 @@ back. Everything written after the backup is lost.
 
 ### 1. Stop
 
+**GitOps first:** suspend auto-sync and self-heal for the install before this step, or the controller undoes
+every `kubectl scale` below and starts pods against the restored database without the hold. Sync again only
+after `restoreHold: true` is in your values (step 3).
+
 Scale agentd down first, so it drains, then the reconciler and the API. The database, the gateway and
 OpenShell stay up. Sandboxes keep running while Koinon is stopped, but no run makes progress and no
 schedule fires.
@@ -202,8 +206,10 @@ the block creates it with `kubectl apply`. The import needs a database to read t
 `--database-url` it refuses, unless you add `--no-database`, which skips the retire check with a warning.
 
 **With Helm or GitOps, hold the install before you run this block.** After step 2, and before step 3, run
-`helm upgrade <release> <chart> --reuse-values --set restoreHold=true --wait` (or set `restoreHold: true` in the
-values your GitOps controller applies). The block below starts one `koinon-api` pod when the key Secret exists,
+`helm upgrade <release> <chart> --version <installed-version> -n <namespace> --reuse-values --set restoreHold=true --wait`
+(or set `restoreHold: true` in the values your GitOps controller applies, and sync). **If the key Secret is gone,
+first run `kubectl apply -f koinon-kek-backup.yaml`** (no pod is needed), then the upgrade: `koinon-api` refuses to
+start without the Secret, so `--wait` would fail. If the Secret exists, upgrade first, then run the block. The block below starts one `koinon-api` pod when the key Secret exists,
 and that pod must start held. With the `kubectl set env` way of step 1, the variable is already on the Deployment.
 
 ```sh e1=restore-keys
@@ -288,7 +294,9 @@ kubectl -n "$NS" rollout status deployment/"$REL"-agentd --timeout=5m
 ```
 
 With Helm or GitOps, do not run `kubectl scale` or the `set env` command from step 1. The chart value
-`restoreHold: true` is already set (before step 3), so the three Deployments start held. Do not set it before
+`restoreHold: true` is already set (before step 3), so the three Deployments start held. The chart sets the
+replica counts, so the hold upgrade of step 3 brought them back and the key block then scaled the API to 0:
+**run the same hold upgrade again** (with `--wait`) to start all three, still held. Do not set the hold before
 step 2 ends: an upgrade earlier would start them against a database that step 2 replaces. A GitOps controller with
 self-heal would undo a `kubectl scale`. Set it back to `false` to release. Do
 not mix the two ways: a variable set with `kubectl set env` is not in the chart, so a Helm upgrade
@@ -382,7 +390,7 @@ kubectl -n "$NS" rollout status deployment/"$REL"-api deployment/"$REL"-reconcil
 ```
 
 Start a run to prove that a stored provider key is decrypted. If you held the install with the chart
-value, set `restoreHold: false` and upgrade instead (`helm upgrade <release> <chart> --reuse-values --set
+value, set `restoreHold: false` and upgrade instead (`helm upgrade <release> <chart> --version <installed-version> -n <namespace> --reuse-values --set
 restoreHold=false --wait`). With `gateway.mode: standalone` a held install runs a gateway that is ready
 but refuses every request, and `kubectl set env` does not change it, so release a chart-held install
 with the upgrade.
@@ -484,7 +492,7 @@ If nobody can sign in to the restored install, see [Recover admin access](/docs/
 For a restore into a fresh namespace with its own OpenShell gateway, the chart has a preset,
 `values-restore.yaml`: it sets `restoreHold: true` and a gateway ID of its own (`koinon-restore`). Pass it first
 and your own values second, and give the new gateway's `openshell.address` and client TLS Secret, never the
-source's: two installs on one gateway own each other's objects. Release it with `helm upgrade <release> <chart> --reuse-values --set restoreHold=false --wait`.
+source's: two installs on one gateway own each other's objects. Release it with `helm upgrade <release> <chart> --version <installed-version> -n <namespace> --reuse-values --set restoreHold=false --wait`.
 
 Use the same `postgres.mode` as the install the dump came from; a `cnpg` install cannot be pointed at
 a database restored somewhere else.

@@ -173,8 +173,8 @@ backups first ([Back up and restore](/docs/operate/backup-restore/)).
 `helm install` and `helm upgrade`. Rename the keys, and the image repository if you mirror it
 ([Private registries and mirrors](/docs/operate/private-registries/)). The UI says harness where it said flavor.
 
-**Going back needs a restore.** The migrations of this range rename `agents.flavor` to `harness`, drop the type
-`agent_flavor` and drop the tables `gateway_state_*` and `code_host_pollers`. rc.13 cannot run on that schema, so
+**Going back needs a restore.** The migrations of this range rename `agents.flavor` to `harness`, and drop the type
+`agent_flavor`. rc.13 cannot run on that schema, so
 `helm rollback` does not work after the upgrade: take the backup first ([Back up and restore](/docs/operate/backup-restore/))
 and, to go back to rc.13, restore it.
 
