@@ -32,6 +32,12 @@ The reconciler runs as one leading replica; standby replicas report the Go and p
 | `koinon_reconciler_gateway_apply_duration_seconds` | histogram | none | Time to apply the gateway state, including the wait for the reload. |
 | `koinon_reconciler_gateway_config_rejected` | gauge | none | 1 while the last gateway apply was refused whole by agentgateway (standalone mode), which keeps serving its previous config; 0 otherwise. The reason is in the reconciler log. |
 | `koinon_reconciler_sandboxes` | gauge | `state`: `pending`, `starting`, `ready`, `stopping`, `stopped`, `error`, `deleting`, `deleted`, `retained` | Agent sandboxes by recorded state, set at the end of each pass. |
+| `koinon_openshell_unmarked_objects_waiting_for_agent` | gauge | `kind`: `sandbox`, `provider`, `profile` | OpenShell objects without the `koinon.dev/install` mark that the reconciler cannot claim while their agent keeps its status (reason `waits-for-agent` in `koinon-reconciler unmarked list`). They do not count in `koinon_openshell_unmarked_objects`. See [Back up and restore](/docs/operate/backup-restore/#find-the-unmarked-objects). |
+| `koinon_openshell_unmarked_objects` | gauge | `kind`: `sandbox`, `provider`, `profile` | OpenShell objects without this install's mark that nothing of this install is about to claim (see [Find the unmarked objects](/docs/operate/backup-restore/#find-the-unmarked-objects)). Run a second install on the same gateway only when it is 0 for every kind. |
+| `koinon_openshell_unmarked_objects_stale` | gauge | none | 1 when the last count of the gateway failed, or none has run yet, so the gauges above may be old. |
+| `koinon_reconciler_sandbox_creations_held_total` | counter | none | Passes that deferred a sandbox creation or start because the org was at its sandbox creations per minute (counted per pass, not per sandbox). |
+| `koinon_reconciler_sandbox_network_policy_errors_total` | counter | `reason`: `forbidden`, `not_found`, `other` | Failed applies of the sandbox default-deny NetworkPolicy. |
+| `koinon_reconciler_sandbox_limit_range_errors_total` | counter | `reason`: `forbidden`, `not_found`, `other` | Failed applies of the sandbox LimitRange. |
 | `koinon_reconciler_agents_waiting_for_gateway_key` | gauge | none | Agents whose sandbox work the last pass held back because the gateway did not serve their new key yet. |
 | `koinon_reconciler_sandbox_repairs_total` | counter | none | Stuck, failed or completed sandboxes deleted to be recreated ([stuck sandboxes](/docs/operate/agent-health/)). |
 | `koinon_reconciler_agents_marked_unhealthy_total` | counter | none | Agents marked unhealthy because their sandbox kept failing. |
@@ -83,6 +89,7 @@ and the log line says the reason could not be read.
 | `koinon_agentd_sandbox_wait_cap_total` | counter | `cause`: `image_pull`, `admission`, `no_nodes`, `crash_loop`, `container_create`, `unknown` | Runs failed because their sandbox never became ready within the org's cap. |
 | `koinon_agentd_wrap_up_notices_total` | counter | `limit`: `time`, `requests`, `spend` | Runs whose agent was told a run limit is near (about 80% of it), by the limit that was nearest. |
 | `koinon_agentd_time_limit_stops_total` | counter | none | Runs this replica stopped at their time limit. The api's wall-clock sweep is the backstop and is not counted. |
+| `koinon_agentd_loop_detections_total` | counter | `action`: `nudge`, `stop`; `pattern` | Stuck-agent detections acted on: the agent was told (`nudge`), or the run failed with the class `loop` (`stop`). |
 | `koinon_agentd_model_wait_duration_seconds` | histogram | none | Time a run waited, before starting its harness, for the gateway to serve its model (a new provider's key still reaching the gateway). Observed only for runs that waited and were then served or timed out, not for a wait ended by a cancel, a lost lease or a shutdown. |
 | `koinon_agentd_run_event_write_failures_total` | counter | `class`: `diagnostic`, `business`; `reason`: `timeout`, `conn`, `transient`, `canceled`, `other` | Run events that could not be written after their tries. A diagnostic event (thoughts, progress, notes) is dropped and the run goes on; a business event (state changes, approvals, the reply) abandons the run, and another worker resumes it. The classes are listed in `internal/runoutcome/eventclass.go`. |
 
@@ -95,6 +102,8 @@ and the log line says the reason could not be read.
 | `koinon_api_ledger_ingest_lag_seconds` | histogram | none | Time from a request's access-log record to its ingestion, for newly recorded entries. |
 | `koinon_api_questions_asked_total` | counter | `target_kind`: `user`, `role`, `channel` | Questions agents asked with `ask_user`, by the kind of target they went to. |
 | `koinon_api_rpc_requests_total` | counter | `procedure` (the RPC's full name), `code` (`ok` or the Connect code) | Connect RPCs finished. Requests the auth interceptor refuses are counted (`unauthenticated`). |
+| `koinon_login_limiter_total` | counter | `event`: `failed`, `refused` | Password login failures recorded and requests the limiter refused. Behind a proxy, set `api.trustedProxies`, or every client shares one address. |
+| `koinon_code_host_polls_total` | counter | `provider`, `outcome`: `not_modified`, `changed`, `error`, `rate_limited` | Polls of code-host resources by the shared pollers that feed triggers. |
 
 The admin API under `/admin/v1` is plain HTTP, not Connect, and is not counted yet.
 
@@ -107,6 +116,18 @@ time they read the KEK Secret (at start and about once a minute).
 | --- | --- | --- | --- |
 | `koinon_kek_active_reachable` | gauge | `backend`: the adapter name of the active KEK (`local`, or the KMS adapter) | 1 while the key that wraps the active KEK answers this process, else 0. With the default local KEK it is always 1. A 0 means stored secrets cannot be opened after the next restart. If the KMS is down when a pod starts, the pod does not start (fail closed) and never reports 0. |
 | `koinon_kek_unbound` | gauge | none | KEKs in the loaded key set that a KMS wrapped before the install binding, so they are not bound to the install ID; set on every load of the key set. Local KEKs are not counted. While it is above 0 the process logs a warning; bind them with `secrets.kek.kms.keyAdmin.rewrapUnbound` or rotate them out ([secret keys](/docs/operate/secret-keys/)). |
+
+### Restore and install identity
+
+These show the state of a restored install ([Back up and restore](/docs/operate/backup-restore/)).
+
+| Metric | Type | Labels | Meaning |
+| --- | --- | --- | --- |
+| `koinon_restore_hold` | gauge | none | 1 while the process runs in restore-hold mode and acts on nothing. All three components export it. |
+| `koinon_restore_release_pending` | gauge | none | koinon-api only. 1 while it is unheld and a restore release is pending, or removals wait for `restore.acceptImporterDeletions`. The chart alert `KoinonRestoreReleasePending` fires after 15 minutes at 1. |
+| `koinon_declarative_held_changes` | gauge | `kind`: `model-provider`, `mcp-server`, `connection`; `action`: `apply`, `remove` | Changes the declarative importer found but did not apply because the install is held. |
+| `koinon_install_binding` | gauge | `state`: `same`, `copy`, `unknown` | 1 for the state of this process against the install binding in the database. `copy` on a live install means it lost its mark Secret. |
+| `koinon_auth_quarantined_total` | counter | `kind`: `token`, `session` | API tokens and sessions refused because another install issued them (a restored copy). |
 
 ### Durable workflows
 

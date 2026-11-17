@@ -154,6 +154,19 @@ platform admin allows an internal server in the chart value `egress.allowedInter
 `providers.allowedInternalHosts` still works for one more release) and, with the chart's gateway egress
 policy on, in `networkPolicy.gatewayEgressTo`. Public servers need neither.
 
+## A companion server of a code-host connection
+
+An MCP server is linked to a code-host connection when its URL names a host that acts on that connection's host:
+the connection's web and API hosts, and the connector's own MCP hosts. A companion server on a host of its own, for
+example a self-hosted `gitea-mcp`, is not linked. An org admin or owner adds the host to the connection (on the
+connection's page; `AddConnectionMCPHost` in the API). The rules are strict:
+
+- Exact host names only: plain lower-case ASCII DNS names. No port, scheme or path, no wildcard, no IP address
+  in any form, and no `xn--` label.
+- One host belongs to one connection. A host that an embedded connector type, or another connection of the org,
+  already uses is refused.
+- At most 20 hosts for each connection. Every change is audited with the actor and the list before and after.
+
 ## What is not in v0.1
 
 - Servers that run inside the cluster, started by Koinon, and stdio servers.

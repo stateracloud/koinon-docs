@@ -35,7 +35,8 @@ nothing and fails to start when the Secret is missing. The reconciler waits for 
 **If the Secret is deleted later, `koinon-api` refuses to make a new one.** A new KEK could not open any
 stored value, so on start it checks whether the database holds encrypted values; if it does, it stops with
 "KEK Secret missing; restore it from your backup" and creates nothing. Restore the Secret from your
-backup (`kubectl apply -f koinon-kek-backup.yaml`) and the pods start. Only a database with no
+backup (`kubectl apply -f koinon-kek-backup.yaml`, or `keys import` when a Secret exists; see
+[The key Secret guard](#the-key-secret-guard)) and the pods start. Only a database with no
 encrypted values yet gets a fresh Secret.
 
 A KEK file holds the base64 of 32 random bytes (64 hex characters also work). KEK IDs made by Koinon
@@ -63,7 +64,8 @@ kubectl -n koinon exec deploy/koinon-api -- koinon-api keys export > koinon-kek-
 
 `keys export` prints the key set as a Secret manifest without a namespace, with a comment line per
 KEK that gives its fingerprint (also in `keys status`), so you can tell which backup holds which key.
-Restore it with `kubectl -n <namespace> apply -f koinon-kek-backup.yaml`.
+Restore it with `keys import` when the Secret exists, or `kubectl -n <namespace> apply -f koinon-kek-backup.yaml`
+when it is gone (below).
 The database backup that goes with it, and the full restore order, are in the
 [Back up and restore](/docs/operate/backup-restore/) guide.
 
@@ -201,15 +203,54 @@ Without a terminal (no `-t`, a script, CI, a pod's own command), or with `--no-i
 binary; `kubectl exec -it ... keys retire --no-input <id>` runs the plain form on a terminal. The chart
 does not set it. With `TERM=dumb` the questions are plain lines, one per answer.
 
-## Rotate the OTLP receiver token
+To record which keys an install holds without any key material, save the output of `keys status` (IDs and
+fingerprints only). On another install, or after a restore, `keys compare` reads that file from standard
+input and exits 1 unless the key set holds every listed key with the same fingerprint and the same active key:
 
-koinon-api's internal OTLP listener (the gateway's access log, agentd's run spans) requires a bearer
-token: the Secret `koinon-otlp-token`, key `token` (or the Secret named by `api.otlpToken.existingSecret`).
-The ensure-secrets Job creates it and never changes it. Rotation has no downtime, because the listener
-also accepts the key `previous`:
+```sh
+kubectl -n koinon exec deploy/koinon-api -- koinon-api keys status > koinon-keys-status.txt
+kubectl -n koinon exec -i deploy/koinon-api -- koinon-api keys compare < koinon-keys-status.txt
+```
+
+## The key Secret guard
+
+A native ValidatingAdmissionPolicy (chart value `secrets.kek.guard.enabled`, on by default) refuses `DELETE` of the
+KEK Secret and refuses `UPDATE` from every identity except the `koinon-api` and key-admin service accounts, so a
+deleted or replaced Secret cannot become a new key quietly. Two things follow:
+
+- **Restoring the keys.** `kubectl apply` of a backup over an existing Secret is an UPDATE, so the policy refuses
+  it. Use `keys import`: it reads the output of `keys export` from standard input and merges it into the Secret
+  through `koinon-api` itself. It adds the backup's KEKs, makes the backup's active KEK active and never
+  removes a key. It needs `--yes`, and it refuses a KEK that `keys retire` removed (the audit chain records it)
+  unless you add `--allow-retired`, which adds that key inactive; it never becomes active. Without a
+  database (`--no-database`) the retire check is skipped, with a warning. When the Secret is gone, `kubectl apply`
+  creates it.
+
+  ```sh
+  kubectl -n koinon exec -i deploy/koinon-api -- koinon-api keys import --yes < koinon-kek-backup.yaml
+  ```
+- **Other writers.** With `secrets.kek.existingSecret`, whoever updates the Secret (Argo CD, Flux, or your own user
+  with `kubectl apply`) must be listed in `secrets.kek.guard.extraWriters`, as the user name the API server sees, for
+  example `system:serviceaccount:argocd:argocd-application-controller`.
+
+To delete the Secret on purpose, set `secrets.kek.guard.enabled: false`, upgrade, delete it, then set the value
+back. A second policy, `secrets.reconcilerFence.enabled` (on by default), limits the reconciler to Secrets labelled
+`koinon.dev/managed-by=koinon-reconciler`, so it can never change the KEK Secret or the Secrets `koinon-api` owns.
+It is a separate switch: turning the guard off does not lift the fence. Both policies are cluster-scoped, so
+turn them off only where the install may not create cluster-scoped objects.
+
+## Rotate the OTLP receiver tokens
+
+koinon-api's internal OTLP listener requires a bearer token, and it has two with separate scopes. The gateway's
+access log (`/v1/logs`) uses the Secret `koinon-otlp-token`, key `token` (or the Secret named by
+`api.otlpToken.existingSecret`). The run spans of `koinon-agentd` (`/v1/traces`) use their own Secret
+`koinon-otlp-traces-token`, key `token` (or `api.otlpTracesToken.existingSecret`), which only `koinon-agentd` and
+`koinon-api` mount; each path refuses the other's token. The ensure-secrets Job creates both and never changes
+them. Rotate each the same way. Rotation has no downtime, because the listener also accepts the key `previous`:
 
 1. Put the current `token` value in a new key `previous` and a new value in `token` (`openssl rand -hex 32`;
-   at least 32 characters of A-Z a-z 0-9 . _ ~ + / = -). Keep the values off the command line, where they
+   at least 32 characters of A-Z a-z 0-9 . _ ~ + / = -; for the traces token use `koinon-otlp-traces-token`
+   in the commands below). Keep the values off the command line, where they
    would land in shell history and the process list: write a patch file only you can read, apply it, and
    delete it.
 
@@ -221,8 +262,8 @@ also accepts the key `previous`:
    ```
 
    (`kubectl -n koinon edit secret koinon-otlp-token` works too.)
-2. Wait for kubelet to sync the mounted Secret (up to about a minute). Nothing is restarted: koinon-api and
-   koinon-agentd re-read their files every few seconds, and agentgateway watches the token file and
+2. Wait for kubelet to sync the mounted Secret (up to about a minute). Nothing is restarted: koinon-api (and
+   koinon-agentd, for the traces token) re-read their files every few seconds, and agentgateway watches the token file and
    reloads it, so its next export carries the new token. In kubernetes mode the controller reads the Secret
    and pushes the value to the proxy.
 3. Once every sender sends the new token, check `koinon_api_otlp_auth_rejected_total` stays flat, then
@@ -537,7 +578,7 @@ changed in `before` and `after`. The first start writes every setting; a restart
 writes nothing; two replicas starting together write one event. Like the other start-up writes it is
 retried in the background every 30 seconds while the database refuses the install audit writer role.
 
-The list is fixed in the binary ([`settings.go`](https://github.com/stateracloud/koinon/blob/v0.1.0-rc.13/internal/cmd/koinonapi/settings.go) at the v0.1.0-rc.13 tag): the auth and
+The list is fixed in the binary ([`settings.go`](https://github.com/stateracloud/koinon/blob/v0.1.0-rc.25/internal/cmd/koinonapi/settings.go) at the v0.1.0-rc.25 tag): the auth and
 session flags, the network and gateway flags, the key and wrapping flags (`kek-*`, `openbao-*`,
 `awskms-*`, the saved-work flags), `otlp-addr`, `otlp-token-dir`, `durable`, `run-cap-sweep-interval`,
 `chart-version` (the chart passes `.Chart.Version`) and `image-version`. A flag that names a Secret, a

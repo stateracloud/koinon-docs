@@ -57,7 +57,7 @@ Values may carry a path prefix. With `--set`, escape the dots in a host key:
 | --- | --- |
 | `api`, `reconciler`, `agentd` | the three Deployments |
 | `api` | the migrate, ensure-secrets and preflight Jobs, and the preflight probe pods (`--probe-image`) |
-| `flavors/opencode` and any other flavor | `flavors.*.image`: the reconciler gives it to OpenShell as the sandbox image |
+| `sandbox` and any other harness image | `harnesses.*.image`: the reconciler gives it to OpenShell as the sandbox image |
 | agentgateway | `gateway.standalone.image`, in standalone mode |
 | PostgreSQL | `postgres.cnpg.imageName` (the CNPG `Cluster`), in cnpg mode |
 | OpenShell's supervisor image | the default `sandboxPolicy.supervisorImages`, see below |
@@ -107,7 +107,7 @@ mirror may be anonymous.
 
 ## When the pull fails
 
-A flavor image that a node cannot pull leaves the sandbox waiting. After the org's wait cap the run fails with
+A harness image that a node cannot pull leaves the sandbox waiting. After the org's wait cap the run fails with
 the cause **the image could not be pulled** and the registry's error as its detail (for example a failed name
 lookup, `pull access denied` or `manifest unknown`), and the agent is marked unhealthy. Koinon learns this by
 reading the sandbox's pod ([How Koinon finds the cause](/docs/operate/agent-health/#how-koinon-finds-the-cause)); with

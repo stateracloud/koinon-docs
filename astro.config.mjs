@@ -84,7 +84,9 @@ export default defineConfig({
               label: 'Sandboxes',
               collapsed: true,
               items: [
+                { label: 'Sandbox size and defaults', slug: 'docs/operate/sandbox-resources' },
                 { label: 'Stuck sandboxes', slug: 'docs/operate/agent-health' },
+                { label: 'Recover admin access', slug: 'docs/operate/recover-admin-access' },
                 { label: 'Sandbox break-glass', slug: 'docs/operate/sandbox-break-glass' },
               ],
             },

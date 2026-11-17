@@ -110,6 +110,9 @@ second install on the gateway. Do not run a restored copy on the same gateway un
 ([Back up and restore](/docs/operate/backup-restore/#two-installs-on-one-openshell-gateway)). Runs that hold an agent
 for a long time delay it; a higher `reconciler.maxRecreatesPerPass` shortens it.
 
+To see which objects are not claimed yet, and why, run `koinon-reconciler unmarked list`
+([Back up and restore](/docs/operate/backup-restore/#find-the-unmarked-objects)).
+
 ## Upgrading to the install audit chain (ADR 0100)
 
 The release that adds the install audit chain (migration 00066) needs a `NOLOGIN` group role,
@@ -158,6 +161,90 @@ login and reports `koinon_install_audit_writer_ok 0`, and it keeps serving.
 
   Keep the `api`, `reconciler` and `agentd` logins separate. See "The install audit chain" in
   the [Secret keys](/docs/operate/secret-keys/) page.
+
+## Upgrading from v0.1.0-rc.13 to v0.1.0-rc.25
+
+Read this before you upgrade a release candidate that is older than v0.1.0-rc.25. Take the database and key
+backups first ([Back up and restore](/docs/operate/backup-restore/)).
+
+**Rename your values.** The chart's `flavors` and `flavorPrepull` values are now `harnesses` and
+`harnessPrepull`, and the OpenCode image is `ghcr.io/stateracloud/koinon/sandbox` (it was
+`.../flavors/opencode`). The chart rejects unknown values, so a values file that still has `flavors:` fails
+`helm install` and `helm upgrade`. Rename the keys, and the image repository if you mirror it
+([Private registries and mirrors](/docs/operate/private-registries/)). The UI says harness where it said flavor.
+
+**Going back needs a restore.** The migrations of this range rename `agents.flavor` to `harness`, and drop the type
+`agent_flavor`. rc.13 cannot run on that schema, so
+`helm rollback` does not work after the upgrade: take the backup first ([Back up and restore](/docs/operate/backup-restore/))
+and, to go back to rc.13, restore it.
+
+**Apply the new CRD.** The chart ships its first custom resource definition, `PlatformAdminRecovery`
+([Recover admin access](/docs/operate/recover-admin-access/)). Helm installs a CRD from `crds/` on a first
+install and never upgrades one, so on an existing install apply it by hand before `helm upgrade`:
+
+```sh
+helm pull oci://ghcr.io/stateracloud/koinon/charts/koinon --version <version-without-v> --untar --untardir ./koinon-chart
+kubectl apply --server-side -f ./koinon-chart/koinon/crds/
+```
+
+Without it the reconciler starts and works, and you cannot create a recovery request: `kubectl create` fails with
+"no matches for kind". Where you may
+not create CRDs, use `--skip-crds`. Set `recovery.subjects` to the users who may ask; nobody may by default.
+
+**New admission policies.** The chart renders three more native ValidatingAdmissionPolicies, so the chart's
+installer needs the right to create them (they are cluster-scoped; the `...` names are release-scoped):
+
+- the KEK Secret guard, `secrets.kek.guard.enabled` (default on): `DELETE` of the key Secret and `UPDATE` by anyone
+  but `koinon-api` and the key-admin Job are refused. If GitOps or your own user updates a Secret you named in
+  `secrets.kek.existingSecret`, list that user in `secrets.kek.guard.extraWriters`
+  ([The key Secret guard](/docs/operate/secret-keys/#the-key-secret-guard));
+- the reconciler fence, `secrets.reconcilerFence.enabled` (default on): the reconciler may change only Secrets
+  labelled `koinon.dev/managed-by=koinon-reconciler`;
+- the platform recovery policy, with `recovery.enabled` (default on).
+
+**Sandbox namespaces get a default-deny NetworkPolicy and a LimitRange.** `sandboxNetworkPolicy.enabled` and
+`sandboxLimitRange.enabled` are on by default. The reconciler applies a NetworkPolicy named
+`<namespace>-<fullname>-sandbox-default-deny` (empty pod selector, ingress and egress, no allow rules; OpenShell's own
+policies add to it) and a LimitRange named `<namespace>-<fullname>-sandbox-limitrange` (default request
+50m and 64Mi, default limit 250m and 256Mi, for init containers too) in each workspace namespace of
+`openshell.gatewayId`. Failures count in `koinon_reconciler_sandbox_network_policy_errors_total` and
+`koinon_reconciler_sandbox_limit_range_errors_total`. Turning one off removes its chart objects and applies
+nothing new; existing LimitRanges stay until you delete them
+(`kubectl delete limitrange -A -l koinon.dev/sandbox-limit-range=true`).
+
+**A Kata runtime class must carry overhead.** `openshell.runtimeClassName` (default `kata`) names a class whose
+`overhead.podFixed` sets memory and cpu. The preflight warns when either is missing: without it the scheduler
+undercounts every `vm` sandbox and a sandbox near its memory limit can get the VM monitor OOM-killed.
+`kata-deploy` ships 130Mi and 250m for Cloud Hypervisor and 320Mi and 250m for QEMU; measure under load and raise it.
+
+**Two OTLP tokens.** The run spans of `koinon-agentd` now use their own token, the Secret
+`koinon-otlp-traces-token` (`api.otlpTracesToken.existingSecret`), and `koinon-agentd` no longer mounts
+`koinon-otlp-token`, which keeps the gateway's `/v1/logs`. The hook Job creates the new Secret on upgrade.
+Rotation is in [Secret keys](/docs/operate/secret-keys/#rotate-the-otlp-receiver-tokens).
+
+**Behind a proxy or ingress.** The login and admin limiters key on the connection's peer address, so behind an
+ingress every client shares one address and one bad actor can lock the others out. Set `api.trustedProxies` to the
+addresses (CIDRs) of the proxies in front of `koinon-api`, and `api.trustedProxyHeader` (`x-forwarded-for` by
+default, or `forwarded`). A request whose peer is listed has its client address read from that header, from the
+right, up to the first hop that is not listed. List only addresses that nothing but your proxy connects from,
+never a whole pod network or `0.0.0.0/0`, and set `networkPolicy.apiFrom` so only the proxy can reach the port.
+`koinon_login_limiter_total{event}` counts failures and refusals.
+
+**Sandbox recreates are a token bucket.** `reconciler.maxRecreatesPerPass` (default 4) now means that many
+sandboxes may be recreated at once and the allowance returns at that rate for each resync interval, so a changed
+sandbox spec (a new supervisor or harness image, new resources) does not recreate the whole fleet at once.
+
+**Restore changes.** `koinon_restore_hold` and the hold work as before; the release step, the install binding,
+`checkpoints.readOnly`, `restore.acceptImporterDeletions` and `koinon-api restore status` are new
+([Back up and restore](/docs/operate/backup-restore/#what-the-release-does-to-the-install)). koinon-api now
+reads the install mark (`KOINON_INSTALL_MARK`), and records its hash in the database: API tokens and sessions
+that another install issued are refused. A live install that lost its mark Secret is treated as a copy until
+you apply the mark backup. The first upgrade of an existing install claims the record and blocks nothing.
+Under Helm, the pre-upgrade Job `restore-release-check` runs while `restoreHold` is false and exits 0 when no
+release is pending.
+
+**Prices.** Default price refresh reads more public sources
+([Default price list](/docs/operate/default-prices/)).
 
 ## Patch upgrade (rolling)
 
