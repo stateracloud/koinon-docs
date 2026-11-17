@@ -302,8 +302,9 @@ self-heal would undo a `kubectl scale`. Set it back to `false` to release. Do
 not mix the two ways: a variable set with `kubectl set env` is not in the chart, so a Helm upgrade
 neither adds nor removes it.
 
-GitOps: sync again (Argo CD: a manual sync; Flux: `flux reconcile helmrelease <name> --force`). Turn auto-sync and
-self-heal back on only after the release. With Helm 3 the upgrade restores the replica count after a `kubectl scale`;
+GitOps: sync again (Argo CD: a manual sync; Flux: `flux resume helmrelease <name> -n <namespace>`, which reconciles,
+once `restoreHold: true` is in the values). Turn auto-sync and self-heal back on only after the release; for Flux,
+the resume turns it back on at this step. With Helm 3 the upgrade restores the replica count after a `kubectl scale`;
 with Helm 4 server-side apply, check that the Deployments have their replicas after the upgrade
 (`kubectl -n <namespace> get deploy`).
 
