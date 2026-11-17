@@ -61,10 +61,10 @@ In each OpenShell workspace namespace of `openshell.gatewayId` the reconciler ap
 on by default, and each also renders a ClusterRole, a binding and a ValidatingAdmissionPolicy that fence the
 reconciler to this gateway's namespaces:
 
-- `sandboxNetworkPolicy.enabled`: a NetworkPolicy named `<namespace>-<name>-sandbox-default-deny` with an empty pod
+- `sandboxNetworkPolicy.enabled`: a NetworkPolicy named `<namespace>-<fullname>-sandbox-default-deny` with an empty pod
   selector, both policy types and no allow rules. OpenShell's own policies add to it. It needs a CNI that enforces
   NetworkPolicy and uses nothing CNI-specific.
-- `sandboxLimitRange.enabled`: a LimitRange named `<namespace>-<release>-sandbox-limitrange` with a default request of 50m
+- `sandboxLimitRange.enabled`: a LimitRange named `<namespace>-<fullname>-sandbox-limitrange` with a default request of 50m
   and 64Mi and a default limit of 250m and 256Mi for each container, init containers included. OpenShell cannot size
   its supervisor and init containers itself, so without it they run with no request. It sizes a pod only at
   admission. It needs `sandboxPolicy.enabled`. Turning it off removes the chart objects and applies nothing new;

@@ -162,8 +162,9 @@ REL=${REL:-koinon}
 kubectl -n "$NS" set env deployment/"$REL"-api deployment/"$REL"-reconciler deployment/"$REL"-agentd KOINON_RESTORE_HOLD=true
 ```
 
-With Helm or GitOps, skip this command: the hold goes in with the chart value in step 4, after the
-database and the keys are back.
+With Helm or GitOps, skip this command: set the chart value `restoreHold: true` after step 2 and **before
+step 3** (see step 3). Step 3 starts one `koinon-api` pod, and an API without the hold would recover pending
+workflows and fire schedules against the restored database.
 
 ### 2. Restore the database
 
@@ -198,7 +199,12 @@ If it exists, the block starts one `koinon-api` pod and runs `keys import --yes`
 it: it adds the backup's keys, makes the backup's active key active and removes none. It refuses a key that
 `keys retire` removed (`--allow-retired` adds it, inactive; it never becomes active). If the Secret is gone,
 the block creates it with `kubectl apply`. The import needs a database to read the retire events; without
-`--database-url` it warns that retired keys cannot be checked.
+`--database-url` it refuses, unless you add `--no-database`, which skips the retire check with a warning.
+
+**With Helm or GitOps, hold the install before you run this block.** After step 2, and before step 3, run
+`helm upgrade <release> <chart> --reuse-values --set restoreHold=true --wait` (or set `restoreHold: true` in the
+values your GitOps controller applies). The block below starts one `koinon-api` pod when the key Secret exists,
+and that pod must start held. With the `kubectl set env` way of step 1, the variable is already on the Deployment.
 
 ```sh e1=restore-keys
 NS=${NS:-koinon}
@@ -263,7 +269,7 @@ fi
 ```
 
 koinon-api refuses to start without the Secret and never makes a new key when the database already
-holds sealed values (it says "KEK Secret missing; restore it from your backup"). A Secret with the
+holds sealed values (it says "the KEK Secret <namespace>/<name> is missing but the database holds encrypted values that only its keys can open; restore the Secret from your backup ... Nothing was created"). A Secret with the
 wrong keys shows in the start-up log and in `keys status`.
 
 ### 4. Start, held
@@ -281,10 +287,10 @@ kubectl -n "$NS" scale deployment/"$REL"-agentd --replicas=1
 kubectl -n "$NS" rollout status deployment/"$REL"-agentd --timeout=5m
 ```
 
-With Helm or GitOps, do not run `kubectl scale` or the `set env` command from step 1. Set the chart
-value `restoreHold: true` and upgrade. That starts the three Deployments held, after the database and
-the keys are back (an upgrade earlier would start them against a database that step 2 replaces), and
-a GitOps controller with self-heal would undo a `kubectl scale`. Set it back to `false` to release. Do
+With Helm or GitOps, do not run `kubectl scale` or the `set env` command from step 1. The chart value
+`restoreHold: true` is already set (before step 3), so the three Deployments start held. Do not set it before
+step 2 ends: an upgrade earlier would start them against a database that step 2 replaces. A GitOps controller with
+self-heal would undo a `kubectl scale`. Set it back to `false` to release. Do
 not mix the two ways: a variable set with `kubectl set env` is not in the chart, so a Helm upgrade
 neither adds nor removes it.
 
@@ -447,7 +453,7 @@ To restore into another cluster or namespace, create the namespace and the OpenS
 certificate and install the same chart version with your values, as in the
 [Quickstart](/docs/start/quickstart/#2-install). Then follow the Restore steps above from step 1. Apply the key
 backup before the first start, if you can: a new install makes its own key Secret on first start,
-and step 3 replaces it with yours.
+and step 3 merges yours into it: the backup's keys are added, the new install's first key stays in the Secret, and the backup's active key becomes active.
 
 Then decide about the install mark. If the new install **replaces** the old one on the same OpenShell
 gateway, stop the old install first (scale its Deployments to zero or uninstall it). Two running
@@ -478,7 +484,7 @@ If nobody can sign in to the restored install, see [Recover admin access](/docs/
 For a restore into a fresh namespace with its own OpenShell gateway, the chart has a preset,
 `values-restore.yaml`: it sets `restoreHold: true` and a gateway ID of its own (`koinon-restore`). Pass it first
 and your own values second, and give the new gateway's `openshell.address` and client TLS Secret, never the
-source's: two installs on one gateway own each other's objects. Release it with `helm upgrade --set restoreHold=false`.
+source's: two installs on one gateway own each other's objects. Release it with `helm upgrade <release> <chart> --reuse-values --set restoreHold=false --wait`.
 
 Use the same `postgres.mode` as the install the dump came from; a `cnpg` install cannot be pointed at
 a database restored somewhere else.

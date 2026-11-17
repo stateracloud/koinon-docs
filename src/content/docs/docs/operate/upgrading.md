@@ -173,15 +173,22 @@ backups first ([Back up and restore](/docs/operate/backup-restore/)).
 `helm install` and `helm upgrade`. Rename the keys, and the image repository if you mirror it
 ([Private registries and mirrors](/docs/operate/private-registries/)). The UI says harness where it said flavor.
 
+**Going back needs a restore.** The migrations of this range rename `agents.flavor` to `harness`, drop the type
+`agent_flavor` and drop the tables `gateway_state_*` and `code_host_pollers`. rc.13 cannot run on that schema, so
+`helm rollback` does not work after the upgrade: take the backup first ([Back up and restore](/docs/operate/backup-restore/))
+and, to go back to rc.13, restore it.
+
 **Apply the new CRD.** The chart ships its first custom resource definition, `PlatformAdminRecovery`
 ([Recover admin access](/docs/operate/recover-admin-access/)). Helm installs a CRD from `crds/` on a first
 install and never upgrades one, so on an existing install apply it by hand before `helm upgrade`:
 
 ```sh
-kubectl apply --server-side -f charts/koinon/crds/
+helm pull oci://ghcr.io/stateracloud/koinon/charts/koinon --version <version-without-v> --untar --untardir ./koinon-chart
+kubectl apply --server-side -f ./koinon-chart/koinon/crds/
 ```
 
-Without it the reconciler starts and works, and only recovery requests are refused (`CRD missing`). Where you may
+Without it the reconciler starts and works, and you cannot create a recovery request: `kubectl create` fails with
+"no matches for kind". Where you may
 not create CRDs, use `--skip-crds`. Set `recovery.subjects` to the users who may ask; nobody may by default.
 
 **New admission policies.** The chart renders three more native ValidatingAdmissionPolicies, so the chart's
@@ -197,8 +204,8 @@ installer needs the right to create them (they are cluster-scoped; the `...` nam
 
 **Sandbox namespaces get a default-deny NetworkPolicy and a LimitRange.** `sandboxNetworkPolicy.enabled` and
 `sandboxLimitRange.enabled` are on by default. The reconciler applies a NetworkPolicy named
-`<namespace>-<name>-sandbox-default-deny` (empty pod selector, ingress and egress, no allow rules; OpenShell's own
-policies add to it) and a LimitRange named `<namespace>-<release>-sandbox-limitrange` (default request
+`<namespace>-<fullname>-sandbox-default-deny` (empty pod selector, ingress and egress, no allow rules; OpenShell's own
+policies add to it) and a LimitRange named `<namespace>-<fullname>-sandbox-limitrange` (default request
 50m and 64Mi, default limit 250m and 256Mi, for init containers too) in each workspace namespace of
 `openshell.gatewayId`. Failures count in `koinon_reconciler_sandbox_network_policy_errors_total` and
 `koinon_reconciler_sandbox_limit_range_errors_total`. Turning one off removes its chart objects and applies

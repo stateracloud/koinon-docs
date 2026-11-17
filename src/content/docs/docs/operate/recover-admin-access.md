@@ -41,11 +41,13 @@ Helm installs the CRD from the chart's `crds/` directory on a first install. Hel
 one cluster has one CRD for every release. After an upgrade that names a newer CRD, apply it by hand:
 
 ```sh
-kubectl apply --server-side -f charts/koinon/crds/
+helm pull oci://ghcr.io/stateracloud/koinon/charts/koinon --version <version-without-v> --untar --untardir ./koinon-chart
+kubectl apply --server-side -f ./koinon-chart/koinon/crds/
 ```
 
-Use `helm install --skip-crds` where you may not create CRDs; recovery requests are then refused with the
-reason `CRD missing`. Uninstalling a release leaves the CRD; delete it with
+(With a local copy of the chart, apply its `crds/` directory.) Use `helm install --skip-crds` where you may not
+create CRDs; without the CRD, `kubectl create` of a request fails with "no matches for kind", and the rest of
+Koinon works as before. Uninstalling a release leaves the CRD; delete it with
 `kubectl delete crd platformadminrecoveries.recovery.koinon.dev` when no release is left.
 
 ## Make a key, then ask
