@@ -69,7 +69,7 @@ export default defineConfig({
             {
               label: 'Models and tools',
               collapsed: true,
-              items: ['docs/operate/models', 'docs/operate/mcp-servers', 'docs/operate/gateway-modes'],
+              items: ['docs/operate/models', 'docs/operate/mcp-servers', 'docs/operate/mcp-server-tls', 'docs/operate/gateway-modes'],
             },
             {
               label: 'Cost',
