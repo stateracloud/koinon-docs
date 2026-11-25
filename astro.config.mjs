@@ -59,6 +59,7 @@ export default defineConfig({
                 'docs/operate/upgrading',
                 'docs/operate/backup-restore',
                 { label: 'Secret keys', slug: 'docs/operate/secret-keys' },
+                { label: 'Move the KEK wrapping key', slug: 'docs/operate/kek-key-move' },
               ],
             },
             {
